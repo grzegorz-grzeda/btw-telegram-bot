@@ -20,3 +20,5 @@
 ## Comments
 
 A line that is only a prefix letter plus spaces (`f `) is dropped, and if nothing else is left the bot replies "Nothing to add". A bare `f` with no space is saved as the Unsorted item "f", as the checklist asks. Telegram trims trailing whitespace from messages, so in practice the rejection only fires for a middle line of a multi-line message.
+
+Implemented in 176d49e.
