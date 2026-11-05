@@ -34,7 +34,8 @@ s bulbs - 🛒 Stuff to buy that isn't food
 d call dentist - ✅ Do (anything that isn't buying)
 Without a prefix, the item goes to ❓ Unsorted.
 
-/list - show your list, grouped by type (tap an item to tick it off)
+/list - show your list, grouped by type (tap an item to tick it off,
+  or a ❓ Unsorted one to give it a type)
 /list f - show only Food (or s, d); the buttons on top filter too
 /done 2 - mark item 2 as done (several: /done 1 3)
 /move 3 s - give item 3 another type (f, s or d)
@@ -66,7 +67,8 @@ def handle(store: TodoStore, update: dict) -> list[Action]:
 # Button data is "<action>:<argument>:...", written and parsed only in this module.
 TYPE_PROMPT = "t"  # "t:<type letter>:<batch key>"
 FILTER = "l"  # "l:<filter letter>", on the filter row of /list
-TICK = "x"  # "x:<filter letter>:<item id>", on each item in /list
+TICK = "x"  # "x:<filter letter>:<item id>", on each item in /list (Unsorted ones open the picker)
+SORT = "s"  # "s:<filter letter>:<type letter>:<item id>", on the type picker
 UNDO = "u"  # "u:<item id>:<tick key>", on the message sent after a tick
 
 
@@ -84,6 +86,8 @@ def _tap(store: TodoStore, tap: dict) -> list[Action]:
         return _tick_tap(store, tap, rest)
     if action == UNDO:
         return _undo_tap(store, tap, rest)
+    if action == SORT:
+        return _sort_tap(store, tap, rest)
     return [AnswerTap(tap["id"])]
 
 
@@ -113,12 +117,40 @@ def _tick_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
     item = store.get(chat_id, item_id)
     if item is None or item.done:
         return [AnswerTap(tap["id"], GONE)]
+    if item.type is None:
+        text = f"Which type is “{item.text}”?"
+        picker = EditMessage(chat_id, message["message_id"], text, _picker(letter, item))
+        return [AnswerTap(tap["id"]), picker]
     tick = store.mark_done([item.id])
     return [
         AnswerTap(tap["id"]),
         _redraw(store, message, FILTER_LETTERS[letter]),
         SendMessage(chat_id, f"✔️ {item.text}", [[Button("↩️ Undo", f"{UNDO}:{item.id}:{tick}")]]),
     ]
+
+
+def _picker(letter: str, item: Item) -> Buttons:
+    """Type buttons for one Unsorted item, and Back to the list it was opened from."""
+    back = Button("⬅️ Back", f"{FILTER}:{letter}")
+    return [_type_row(f"{SORT}:{letter}:{{}}:{item.id}"), [back]]
+
+
+def _sort_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
+    message = tap["message"]
+    letter, _, rest = rest.partition(":")
+    type_letter, _, item_id = rest.partition(":")
+    if letter not in FILTER_LETTERS or type_letter not in PREFIXES or not item_id:
+        return [AnswerTap(tap["id"])]
+    item = store.get(message["chat"]["id"], item_id)
+    # Ticked off or sorted since the picker opened: leave it be, show the list as it is now.
+    if item is None or item.done:
+        answer = AnswerTap(tap["id"], GONE)
+    elif item.type is not None:
+        answer = AnswerTap(tap["id"], f"Already in {GROUP_NAMES[item.type]}")
+    else:
+        store.set_type(item.id, PREFIXES[type_letter])
+        answer = AnswerTap(tap["id"])
+    return [answer, _redraw(store, message, FILTER_LETTERS[letter])]
 
 
 def _undo_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
@@ -152,7 +184,12 @@ def _added_to(item_type: str | None, texts: list[str]) -> str:
 
 
 def _type_prompt(batch: str) -> Buttons:
-    return [[Button(GROUP_NAMES[t], f"{TYPE_PROMPT}:{letter}:{batch}") for letter, t in PREFIXES.items()]]
+    return [_type_row(f"{TYPE_PROMPT}:{{}}:{batch}")]
+
+
+def _type_row(data: str) -> list[Button]:
+    """[🍎 Food] [🛒 Stuff] [✅ Do]; `data` has a {} where each type's letter goes."""
+    return [Button(GROUP_NAMES[t], data.format(letter)) for letter, t in PREFIXES.items()]
 
 
 def _reply(store: TodoStore, chat_id: int, text: str) -> str | tuple[str, Buttons | None]:
@@ -239,8 +276,15 @@ def _list(store: TodoStore, chat_id: int, only: str | None = None) -> tuple[str,
     shown = [item for _, item in numbered[:MAX_ITEM_BUTTONS]]
     letter = _filter_letter(only)
     buttons = [_filter_row(only)]
-    buttons += [[Button(f"✔️ {item.text}", f"{TICK}:{letter}:{item.id}")] for item in shown]
+    buttons += [
+        [Button(f"{_tap_icon(item)} {item.text}", f"{TICK}:{letter}:{item.id}")] for item in shown
+    ]
     return text, buttons
+
+
+def _tap_icon(item: Item) -> str:
+    """What tapping the item does: tick it off, or (Unsorted) pick a type."""
+    return "❓" if item.type is None else "✔️"
 
 
 LIST_USAGE = "Usage: /list, or /list food (f), /list stuff (s), /list do (d)"

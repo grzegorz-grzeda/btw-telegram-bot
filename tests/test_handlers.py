@@ -334,7 +334,7 @@ class TickTest(ListTestCase):
         self.send("d call mum\nf milk\nhammer")
         reply = self.send("/list")
         self.assertEqual(
-            self.labels(reply), [FILTER_ROW, ["✔️ milk"], ["✔️ call mum"], ["✔️ hammer"]]
+            self.labels(reply), [FILTER_ROW, ["✔️ milk"], ["✔️ call mum"], ["❓ hammer"]]
         )
 
     def test_empty_list_has_no_buttons(self):
@@ -498,6 +498,77 @@ class FilterTest(ListTestCase):
         redrawn = self.edit_after(self.tap(food, "✔️ milk"))
         self.assertEqual(redrawn.text, "No Food items.")
         self.assertEqual(self.labels(redrawn), [["All", "• 🍎", "🛒", "✅"]])
+
+
+class SortTest(ListTestCase):
+    """Tapping an Unsorted item in /list swaps the list for a type picker for that item."""
+
+    def edit_after(self, actions):
+        (edit,) = [a for a in actions if isinstance(a, EditMessage)]
+        return edit
+
+    def picker(self):
+        """Open the picker for "hammer" from a fresh /list; return the edited message."""
+        return self.edit_after(self.tap(self.send("/list"), "❓ hammer", message_id=55))
+
+    def test_tapping_an_unsorted_item_shows_a_type_picker_in_place(self):
+        self.send("f milk\nhammer")
+        actions = self.tap(self.send("/list"), "❓ hammer", message_id=55)
+        self.assertEqual(len(actions), 2, actions)
+        edit = self.edit_after(actions)
+        self.assertEqual((edit.chat_id, edit.message_id), (CHAT, 55))
+        self.assertEqual(edit.text, "Which type is “hammer”?")
+        self.assertEqual(self.labels(edit), [["🍎 Food", "🛒 Stuff", "✅ Do"], ["⬅️ Back"]])
+        self.assertEqual(self.list_text(), "🍎 Food\n1. milk\n\n❓ Unsorted\n2. hammer")
+
+    def test_choosing_a_type_files_the_item_and_redraws_the_list(self):
+        self.send("f milk\nhammer\nd call mum")
+        actions = self.tap(self.picker(), "🛒 Stuff", message_id=55)
+        self.assertEqual(len(actions), 2, actions)
+        edit = self.edit_after(actions)
+        self.assertEqual((edit.chat_id, edit.message_id), (CHAT, 55))
+        self.assertEqual(edit.text, "🍎 Food\n1. milk\n\n🛒 Stuff\n2. hammer\n\n✅ Do\n3. call mum")
+        self.assertEqual(
+            self.labels(edit), [FILTER_ROW, ["✔️ milk"], ["✔️ hammer"], ["✔️ call mum"]]
+        )
+        self.assertEqual(self.list_text(), edit.text)
+
+    def test_back_returns_to_the_list_unchanged(self):
+        self.send("f milk\nhammer")
+        before = self.send("/list")
+        edit = self.edit_after(self.tap(self.picker(), "⬅️ Back", message_id=55))
+        self.assertEqual((edit.chat_id, edit.message_id), (CHAT, 55))
+        self.assertEqual((edit.text, self.labels(edit)), (before.text, self.labels(before)))
+        self.assertEqual(self.list_text(), before.text)
+
+    def test_choosing_a_type_for_an_item_done_since_says_gone_and_redraws(self):
+        self.send("f milk\nhammer")
+        picker = self.picker()
+        self.send("/done 2")
+        actions = self.tap(picker, "🍎 Food")
+        self.assertEqual(actions[0], AnswerTap("t1", "That item is no longer on your list"))
+        self.assertEqual(self.edit_after(actions).text, "🍎 Food\n1. milk")
+        self.assertEqual(self.list_text(), "🍎 Food\n1. milk")
+
+    def test_choosing_a_type_for_an_item_moved_since_keeps_the_newer_type(self):
+        self.send("f milk\nhammer")
+        picker = self.picker()
+        self.send("/move 2 s")
+        actions = self.tap(picker, "🍎 Food")
+        self.assertEqual(actions[0], AnswerTap("t1", "Already in 🛒 Stuff"))
+        self.assertEqual(self.edit_after(actions).text, "🍎 Food\n1. milk\n\n🛒 Stuff\n2. hammer")
+
+    def test_picker_tapped_from_another_chat_changes_nothing(self):
+        self.send("f milk\nhammer")
+        picker = self.picker()
+        actions = self.tap(picker, "🍎 Food", chat_id=OTHER_CHAT)
+        self.assertEqual(actions[0], AnswerTap("t1", "That item is no longer on your list"))
+        self.assertEqual(self.list_text(), "🍎 Food\n1. milk\n\n❓ Unsorted\n2. hammer")
+
+    def test_done_still_ticks_off_unsorted_items_directly(self):
+        self.send("f milk\nhammer")
+        self.assertEqual(self.send("/done 2").text, "Done: hammer")
+        self.assertEqual(self.list_text(), "🍎 Food\n1. milk")
 
 
 class PersistenceTest(unittest.TestCase):

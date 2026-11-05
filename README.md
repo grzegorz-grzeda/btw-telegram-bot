@@ -7,7 +7,7 @@ Send the bot any text and it's added to your list. Pure Python standard library:
 
 - *any text*: adds an item (each line of a multi-line message is a separate item)
 - `f milk`, `s bulbs`, `d call dentist`: adds an item as 🍎 Food, 🛒 Stuff or ✅ Do (the prefix letter and a space; any case). Without a prefix it goes to ❓ Unsorted
-- `/list`: shows open items grouped Food, Stuff, Do, Unsorted, with one running number. Tap an item's button to tick it off; the bot offers an Undo. The [All] [🍎] [🛒] [✅] row on top filters the list to one type, keeping the item numbers
+- `/list`: shows open items grouped Food, Stuff, Do, Unsorted, with one running number. Tap an item's button to tick it off; the bot offers an Undo. Tapping a ❓ Unsorted item instead shows [🍎 Food] [🛒 Stuff] [✅ Do] and [⬅️ Back] in place of the list, to give it a type. The [All] [🍎] [🛒] [✅] row on top filters the list to one type, keeping the item numbers
 - `/list food` (or `f`, `stuff`/`s`, `do`/`d`): opens the list already filtered
 - `/done 2`: marks item 2 done (several at once: `/done 1 3`)
 - `/move 3 s`: changes item 3's type (`f`, `s` or `d`)
