@@ -38,6 +38,7 @@ Config is in `.env.example`.
 
 ## Git
 
+- **Stage by path, never in bulk.** The user edits files (including `.env`) in nano alongside you, so the tree can hold their lock files and half-done edits. Run `git add <path>` for each file you changed, never `git add -A`, `git add .` or `git commit -a`. Before committing, check `git status --short` for files you didn't touch and leave them out; ask if one looks like it belongs.
 - **Push when done.** Once a piece of work is committed and the tests pass, push it to `origin` straight away, without asking. CI runs on the push.
 
 ## Agent skills
