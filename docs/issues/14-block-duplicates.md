@@ -2,7 +2,7 @@
 
 **What to build:** Adding an item whose text matches an open item, ignoring case and spacing, adds nothing and says where the existing item is; a prefix fills in a missing type. Duplicates already in the database are merged on startup, keeping the oldest. [Spec](../specs/household-list.md) user stories 11–18.
 
-**Blocked by:** 11 (One List for the household)
+**Blocked by:** 11 (One List for the household) — done
 
 **Status:** ready-for-agent
 
@@ -15,3 +15,7 @@
 - [ ] The type prompt appears only when at least one new Unsorted item was added, and covers only the new ones.
 - [ ] On startup, open duplicates are merged: the oldest is kept, takes the newest copy's type if it is Unsorted itself, and the other copies are deleted. Running it again changes nothing.
 - [ ] Tests cover case and spacing, punctuation and plurals not matching, Done items, the Unsorted-gets-the-type and different-type cases, no prompt for an unprefixed duplicate, repeats in one message, and the startup cleanup through a file-based store.
+
+## Comments
+
+Ticket 11 (aa6d162) dropped the chat argument from every store operation: `add_batch(items)`, `type_batch(batch, type)`, `open_items()`, `get(item_id)`, `undo_done(item_id, tick)`. Duplicate checks run against the one List.
