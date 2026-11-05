@@ -2,6 +2,7 @@
 
 import logging
 import os
+import signal
 import sys
 import time
 
@@ -76,8 +77,14 @@ def execute(client: TelegramClient, action: Action) -> None:
         raise TypeError(f"Unknown action: {action!r}")
 
 
+def stop_on_sigterm(signum, frame) -> None:
+    """`docker stop` sends SIGTERM, which PID 1 ignores without a handler: stop like Ctrl-C."""
+    raise KeyboardInterrupt
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    signal.signal(signal.SIGTERM, stop_on_sigterm)
     load_dotenv()
 
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()

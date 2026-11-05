@@ -1,0 +1,10 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Overrides any BTW_DB_PATH in .env: the database lives in the bind-mounted ./data.
+      BTW_DB_PATH: /data/btw.db
+    volumes:
+      - ./data:/data

@@ -9,12 +9,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-python3 -m btw_bot                                    # run the bot (reads .env from the cwd)
+python3 -m btw_bot                                    # run the bot locally (reads .env from the cwd)
+docker compose up -d --build                          # run it as deployed (database in ./data)
 python3 -m unittest                                   # all tests
 python3 -m unittest tests.test_handlers.HandleTest.test_add_command   # one test
 ```
 
-There is no build step, linter config or virtualenv: the project uses only the standard library. CI (`.github/workflows/test.yml`) runs the tests on Python 3.10 and 3.14.
+There is no build step, linter config or virtualenv: the project uses only the standard library. CI (`.github/workflows/test.yml`) runs the tests on Python 3.14, the version the Docker image pins.
 
 ## Architecture
 
@@ -31,10 +32,10 @@ Config is in `.env.example`.
 
 ## Constraints
 
-- **No dependencies.** Keep it stdlib-only unless the user agrees otherwise. This is what keeps setup on the Pi to a `git clone`.
-- **Python 3.10 compatibility.** The dev machine runs 3.14, but the Pi's system Python may be older (Raspberry Pi OS Bookworm ships 3.11). The code uses `X | None` annotations, so 3.10 is the floor.
+- **No dependencies.** Keep it stdlib-only unless the user agrees otherwise. This keeps the image free of any install step, so it builds in seconds on the Pi.
 - **Long polling, not webhooks.** The Pi has no public HTTPS endpoint.
-- **Deployment** is the systemd unit in `deploy/btw-bot.service`, which runs `/usr/bin/python3 -m btw_bot` from the repo checkout.
+- **Deployment** is Docker, the same on the Pi and the VPS: `git pull` then `docker compose up -d --build` in the repo checkout. The `Dockerfile` pins Python, so that's the only version to support. Images are built on the device, with no registry. The database lives in the bind-mounted `./data`; `compose.yaml` sets its path, overriding `.env`. The bot runs as PID 1, so it handles SIGTERM itself to stop promptly.
+- **One instance at a time.** Telegram allows one poller per bot token, so the Pi and the VPS never run together.
 
 ## Git
 

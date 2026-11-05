@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # 3.10 is the Pi's floor (see CLAUDE.md); 3.14 is the dev machine.
-        python-version: ["3.10", "3.14"]
+        # The Docker image pins 3.14 (see Dockerfile), as does the dev machine.
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

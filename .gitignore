@@ -226,3 +226,6 @@ __marimo__/
 .*.sw[a-p]
 *.sw[a-p]
 *~
+
+# Docker bind-mounted data folder (database, later backups)
+/data/

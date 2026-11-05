@@ -1,0 +1,4 @@
+# Only btw_bot/ goes into the image. Keep secrets and data out of the build context.
+*
+!btw_bot/
+**/__pycache__
