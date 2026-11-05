@@ -5,6 +5,7 @@ import os
 import sys
 import time
 
+from .actions import Action, AnswerTap, EditMessage, SendMessage
 from .db import TodoStore
 from .handlers import handle
 from .telegram import TelegramClient, TelegramError
@@ -46,20 +47,33 @@ def run(client: TelegramClient, store: TodoStore, allowed_users: set[int]) -> No
 
         for update in updates:
             offset = update["update_id"] + 1
-            message = update.get("message")
-            if not message or "text" not in message:
-                continue
-            user_id = message.get("from", {}).get("id")
+            user_id = sender_id(update)
             if allowed_users and user_id not in allowed_users:
-                log.info("Ignoring message from user %s (not in BTW_ALLOWED_USERS)", user_id)
+                log.info("Ignoring update from user %s (not in BTW_ALLOWED_USERS)", user_id)
                 continue
 
-            chat_id = message["chat"]["id"]
             try:
-                reply = handle(store, chat_id, message["text"])
-                client.send_message(chat_id, reply)
+                for action in handle(store, update):
+                    execute(client, action)
             except Exception:
                 log.exception("Failed to handle update %s", update["update_id"])
+
+
+def sender_id(update: dict) -> int | None:
+    """The user who sent a message or tapped a button."""
+    event = update.get("message") or update.get("callback_query") or {}
+    return event.get("from", {}).get("id")
+
+
+def execute(client: TelegramClient, action: Action) -> None:
+    if isinstance(action, SendMessage):
+        client.send_message(action.chat_id, action.text, action.buttons)
+    elif isinstance(action, EditMessage):
+        client.edit_message(action.chat_id, action.message_id, action.text, action.buttons)
+    elif isinstance(action, AnswerTap):
+        client.answer_tap(action.tap_id, action.notice)
+    else:
+        raise TypeError(f"Unknown action: {action!r}")
 
 
 def main() -> int:

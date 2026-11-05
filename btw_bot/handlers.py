@@ -1,5 +1,6 @@
-"""Turns an incoming message text into a reply. No Telegram I/O here."""
+"""Turns a Telegram update into a list of actions. No Telegram I/O here."""
 
+from .actions import Action, AnswerTap, SendMessage
 from .db import TodoStore
 
 HELP = """\
@@ -12,7 +13,19 @@ Each line of a multi-line message becomes a separate item.
 /help - show this help"""
 
 
-def handle(store: TodoStore, chat_id: int, text: str) -> str:
+def handle(store: TodoStore, update: dict) -> list[Action]:
+    """Handle one raw Telegram update (a text message or a button tap)."""
+    tap = update.get("callback_query")
+    if tap:
+        return [AnswerTap(tap["id"])]
+    message = update.get("message")
+    if not message or "text" not in message:
+        return []
+    chat_id = message["chat"]["id"]
+    return [SendMessage(chat_id, _reply(store, chat_id, message["text"]))]
+
+
+def _reply(store: TodoStore, chat_id: int, text: str) -> str:
     text = text.strip()
     if not text.startswith("/"):
         return _add(store, chat_id, text)

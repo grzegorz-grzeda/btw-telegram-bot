@@ -17,21 +17,23 @@ CREATE INDEX IF NOT EXISTS idx_items_chat_done ON items (chat_id, done);
 
 @dataclass(frozen=True)
 class Item:
-    id: int
+    id: str  # opaque outside the store
     text: str
 
 
 class TodoStore:
+    """Item IDs are opaque strings to callers; only the store knows they're SQLite rowids."""
+
     def __init__(self, path: str):
         self._conn = sqlite3.connect(path)
         self._conn.executescript(SCHEMA)
 
-    def add(self, chat_id: int, text: str) -> int:
+    def add(self, chat_id: int, text: str) -> str:
         with self._conn:
             cur = self._conn.execute(
                 "INSERT INTO items (chat_id, text) VALUES (?, ?)", (chat_id, text)
             )
-        return cur.lastrowid
+        return str(cur.lastrowid)
 
     def open_items(self, chat_id: int) -> list[Item]:
         """Not-done items in the order they were added."""
@@ -39,13 +41,21 @@ class TodoStore:
             "SELECT id, text FROM items WHERE chat_id = ? AND done = 0 ORDER BY id",
             (chat_id,),
         )
-        return [Item(id=row[0], text=row[1]) for row in rows]
+        return [Item(id=str(row[0]), text=row[1]) for row in rows]
 
-    def mark_done(self, item_ids: list[int]) -> None:
+    def mark_done(self, item_ids: list[str]) -> None:
         with self._conn:
             self._conn.executemany(
-                "UPDATE items SET done = 1 WHERE id = ?", [(i,) for i in item_ids]
+                "UPDATE items SET done = 1 WHERE id = ?", [(_rowid(i),) for i in item_ids]
             )
 
     def close(self) -> None:
         self._conn.close()
+
+
+def _rowid(item_id: str) -> int:
+    """Turn an opaque item ID back into a rowid. A malformed ID matches no row."""
+    try:
+        return int(item_id)
+    except ValueError:
+        return -1

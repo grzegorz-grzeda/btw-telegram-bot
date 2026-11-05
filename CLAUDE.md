@@ -18,10 +18,11 @@ There is no build step, linter config or virtualenv: the project uses only the s
 
 ## Architecture
 
-- `btw_bot/handlers.py`: `handle(store, chat_id, text) -> str`. All command logic, with no network I/O, so tests call it directly against an in-memory `TodoStore(":memory:")`.
-- `btw_bot/db.py`: `TodoStore`, a thin wrapper over stdlib `sqlite3`. The schema is created on startup (`CREATE TABLE IF NOT EXISTS`), with no migrations. Completed items are flagged `done = 1`, not deleted.
-- `btw_bot/telegram.py`: a minimal Bot API client over `urllib` (`getUpdates` long polling, `sendMessage` with splitting past 4096 chars). Error messages deliberately leave out the request URL because it contains the token.
-- `btw_bot/__main__.py`: config (env vars plus a tiny `.env` loader where already-set variables win), the user allow-list check and the polling loop. Network errors back off and retry; an exception while handling one update is logged and skipped, so the loop never dies.
+- `btw_bot/handlers.py`: `handle(store, update) -> list[Action]`. Takes a raw Telegram update (a text message or a button tap) and returns actions; never calls Telegram itself. All command logic lives here, so tests feed it fake updates against an in-memory `TodoStore(":memory:")` and assert on the returned actions. Every button tap yields exactly one `AnswerTap`.
+- `btw_bot/actions.py`: the action types the handler returns (`SendMessage`, `EditMessage`, `AnswerTap`, with optional `Button` rows).
+- `btw_bot/db.py`: `TodoStore`, a thin wrapper over stdlib `sqlite3`. The schema is created on startup (`CREATE TABLE IF NOT EXISTS`), with no migrations. Completed items are flagged `done = 1`, not deleted. Item IDs are opaque strings outside the store.
+- `btw_bot/telegram.py`: a minimal Bot API client over `urllib` (`getUpdates` long polling for messages and button taps, `sendMessage` with splitting past 4096 chars and buttons on the last part, `editMessageText`, `answerCallbackQuery`). Error messages deliberately leave out the request URL because it contains the token.
+- `btw_bot/__main__.py`: config (env vars plus a tiny `.env` loader where already-set variables win), the user allow-list check (on the sender of messages and button taps) and the polling loop, which executes the handler's actions in order. Network errors back off and retry; an exception while handling one update is logged and skipped, so the loop never dies.
 
 Item numbers shown to users are positions in the current open list (not DB ids), so they shift after `/done`. `/done` resolves every number against the list as it was before any are marked.
 

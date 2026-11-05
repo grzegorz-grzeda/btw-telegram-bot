@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] The handler takes a Telegram update and returns actions. It never calls Telegram itself.
-- [ ] Actions cover sending a message, editing an existing message and answering a button tap, each with an optional button layout where Telegram allows one.
-- [ ] Every button tap produces exactly one "answer tap" action (unknown taps included), so Telegram's spinner always clears.
-- [ ] The Telegram client can send with a button layout, edit a message's text and buttons, and answer a tap. Polling asks for both messages and button taps.
-- [ ] The polling loop executes the returned actions in order. The allow-list check applies to the sender of button taps as well as messages.
-- [ ] Item IDs are opaque strings everywhere outside the store.
-- [ ] The existing handler tests are rewritten to drive the handler with fake updates and assert on the returned actions. Adding, `/list`, `/done`, `/help` and persistence behave the same as before, and all tests pass.
+- [x] The handler takes a Telegram update and returns actions. It never calls Telegram itself.
+- [x] Actions cover sending a message, editing an existing message and answering a button tap, each with an optional button layout where Telegram allows one.
+- [x] Every button tap produces exactly one "answer tap" action (unknown taps included), so Telegram's spinner always clears.
+- [x] The Telegram client can send with a button layout, edit a message's text and buttons, and answer a tap. Polling asks for both messages and button taps.
+- [x] The polling loop executes the returned actions in order. The allow-list check applies to the sender of button taps as well as messages.
+- [x] Item IDs are opaque strings everywhere outside the store.
+- [x] The existing handler tests are rewritten to drive the handler with fake updates and assert on the returned actions. Adding, `/list`, `/done`, `/help` and persistence behave the same as before, and all tests pass.
