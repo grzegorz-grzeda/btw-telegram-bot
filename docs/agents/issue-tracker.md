@@ -14,6 +14,8 @@ Issues and specs for this repo live as markdown files in `docs/issues/`, committ
 
 Set `Status: resolved`, tick its checklist, and append the commit SHA under `## Comments`. Do this in the same commit as the work.
 
+Then rename the file with a `done-` prefix (`git mv 03-foo.md done-03-foo.md`), so finished tickets stand out in a directory listing. Keep the number: tickets are still referred to by it (`03`, `Blocked by: 03`), so look a ticket up by `*NN-*.md` and expect either name.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a new file under `docs/issues/<feature-slug>/` (creating the directory if needed).
@@ -29,6 +31,6 @@ Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
 - **Map**: `docs/issues/<effort>/map.md` (the Notes / Decisions-so-far / Fog body).
 - **Child ticket**: `docs/issues/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `claimed`/`resolved`.
 - **Blocking**: a `Blocked by: NN, NN` line near the top. A ticket is unblocked when every file it lists is `resolved`.
-- **Frontier**: scan `docs/issues/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
+- **Frontier**: scan `docs/issues/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins. Files starting with `done-` are resolved.
 - **Claim**: set `Status: claimed` and save before any work.
-- **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.
+- **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, rename the file with a `done-` prefix, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.
