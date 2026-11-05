@@ -21,4 +21,4 @@ Ticket 05 (not a blocker, but it changed the list): tick buttons are now `x:<fil
 
 Ticket 06: tapping an Unsorted item's `x:` button now edits the list into a picker (`_picker` in `btw_bot/handlers.py`); old lists' Unsorted buttons do the same. Picker buttons are `s:<filter letter>:<type letter>:<item id>`; Back reuses the filter button `l:<filter letter>`. Choosing a type for an item done since answers `GONE`, for one sorted since answers "Already in <type>" and keeps that type; both redraw the list. Unsorted items' list buttons now read "❓ text" instead of "✔️ text", since tapping them no longer ticks off. `_type_row` builds the [🍎 Food] [🛒 Stuff] [✅ Do] row for both the add prompt and the picker.
 
-Implemented in 636af4d.
+Implemented in e010e28.
