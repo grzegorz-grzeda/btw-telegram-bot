@@ -4,8 +4,12 @@ A personal "by the way..." to-do list kept through Telegram chat. Things you rem
 
 ## Language
 
+**Household**:
+The people allowed to use the bot. They all share the one list, each from their own private chat with the bot.
+_Avoid_: Users, members, team, group
+
 **List**:
-The single collection of open items belonging to one chat. There is one per chat, not one per type.
+The single collection of open items, shared by the household. There is one, not one per person, per chat or per type.
 _Avoid_: Lists, todo list (when meaning a single type's items)
 
 **Item**:
@@ -33,5 +37,13 @@ The state of an item that hasn't been given a type yet. It is not a fourth type.
 _Avoid_: Uncategorized, other, misc
 
 **Done**:
-An item that has been ticked off. It no longer appears in the list.
+An item that has been ticked off because it was dealt with. It no longer appears in the list.
 _Avoid_: Completed, deleted, removed
+
+**Discarded**:
+An item dropped from the list without being dealt with, because it was a mistake or is no longer wanted. It no longer appears in the list, and it is not Done.
+_Avoid_: Deleted, removed, cancelled
+
+**Duplicate**:
+An item whose text matches an open item's, ignoring case and spacing. It isn't added; the open item stands for it.
+_Avoid_: Copy, repeat
