@@ -16,6 +16,15 @@ Set `Status: resolved`, tick its checklist, and append the commit SHA under `## 
 
 Then rename the file with a `done-` prefix (`git mv 03-foo.md done-03-foo.md`), so finished tickets stand out in a directory listing. Keep the number: tickets are still referred to by it (`03`, `Blocked by: 03`), so look a ticket up by `*NN-*.md` and expect either name.
 
+Then review the other open tickets in the same feature directory for a `**Blocked by:**` line that names the finished ticket, and update each one in the same commit:
+
+- Append `— done` to that blocker's entry, e.g. `**Blocked by:** 02 (Item types…) — done`. A ticket whose blockers are all marked done is unblocked.
+- If the finished work changed something the blocked ticket relies on (a store operation, a convention, a decision recorded in the ticket's `## Comments`), add a short note under the blocked ticket's `## Comments` saying what and where.
+
+## Before starting a ticket
+
+Check its `**Blocked by:**` line. Every listed ticket must be a `done-` file with `Status: resolved`. If one isn't, stop and tell the user which blocker is still open, rather than starting the work.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a new file under `docs/issues/<feature-slug>/` (creating the directory if needed).
