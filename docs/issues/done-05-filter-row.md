@@ -1,6 +1,6 @@
 # 05: Filter row and /list food
 
-**What to build:** The top of the `/list` message gets a row of filter buttons, [All] [🍎] [🛒] [✅], with the active one marked. Tapping a filter redraws the same message showing only that type. Item numbers stay the same as in the full list. Ticking an item off in a filtered view keeps the filter. `/list food` (or `f`, and likewise for stuff and do) opens the list already filtered. Spec user stories 19–24.
+**What to build:** The top of the `/list` message gets a row of filter buttons, [All] [🍎] [🛒] [✅], with the active one marked. Tapping a filter redraws the same message showing only that type. Item numbers stay the same as in the full list. Ticking an item off in a filtered view keeps the filter. `/list food` (or `f`, and likewise for stuff and do) opens the list already filtered. [Spec](../specs/item-types.md) user stories 19–24.
 
 **Blocked by:** 04 (Tap to tick off, with Undo) — done
 

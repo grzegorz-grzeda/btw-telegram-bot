@@ -1,6 +1,6 @@
-# 02: Private chats only
+# 12: Private chats only
 
-**What to build:** A message or button tap from any chat that isn't private gets "I only work in private chats" and changes nothing. Spec user story 9.
+**What to build:** A message or button tap from any chat that isn't private gets "I only work in private chats" and changes nothing. [Spec](../specs/household-list.md) user story 9.
 
 **Blocked by:** none
 

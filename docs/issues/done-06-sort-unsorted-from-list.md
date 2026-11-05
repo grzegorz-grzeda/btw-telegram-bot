@@ -1,6 +1,6 @@
 # 06: Sort Unsorted items from the list
 
-**What to build:** In the `/list` message, tapping an Unsorted item opens a type picker for that item instead of ticking it off. The list message is replaced in place by [🍎 Food] [🛒 Stuff] [✅ Do] plus a back button. Choosing a type files the item and redraws the list with the item in its new group. Back returns to the list unchanged. Spec user stories 34–36, 40.
+**What to build:** In the `/list` message, tapping an Unsorted item opens a type picker for that item instead of ticking it off. The list message is replaced in place by [🍎 Food] [🛒 Stuff] [✅ Do] plus a back button. Choosing a type files the item and redraws the list with the item in its new group. Back returns to the list unchanged. [Spec](../specs/item-types.md) user stories 34–36, 40.
 
 **Blocked by:** 04 (Tap to tick off, with Undo) — done
 

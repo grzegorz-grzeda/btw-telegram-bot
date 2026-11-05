@@ -1,6 +1,6 @@
 # 08: Nightly backups
 
-**What to build:** A backup command, runnable inside the bot's container, writes a consistent dated snapshot of the database while the bot keeps running. It keeps 14 days of snapshots in a `backups` folder next to the database, which lands in the host's `./data` folder. The README gives the host cron line that runs it nightly and syncs the folder to Google Drive with rclone, and explains how to restore. Spec user stories 52–56.
+**What to build:** A backup command, runnable inside the bot's container, writes a consistent dated snapshot of the database while the bot keeps running. It keeps 14 days of snapshots in a `backups` folder next to the database, which lands in the host's `./data` folder. The README gives the host cron line that runs it nightly and syncs the folder to Google Drive with rclone, and explains how to restore. [Spec](../specs/item-types.md) user stories 52–56.
 
 **Blocked by:** 07 (Docker deployment) — done
 

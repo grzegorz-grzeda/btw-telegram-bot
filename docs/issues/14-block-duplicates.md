@@ -1,8 +1,8 @@
-# 04: Block duplicates
+# 14: Block duplicates
 
-**What to build:** Adding an item whose text matches an open item, ignoring case and spacing, adds nothing and says where the existing item is; a prefix fills in a missing type. Duplicates already in the database are merged on startup, keeping the oldest. Spec user stories 11–18.
+**What to build:** Adding an item whose text matches an open item, ignoring case and spacing, adds nothing and says where the existing item is; a prefix fills in a missing type. Duplicates already in the database are merged on startup, keeping the oldest. [Spec](../specs/household-list.md) user stories 11–18.
 
-**Blocked by:** 01 (One List for the household)
+**Blocked by:** 11 (One List for the household)
 
 **Status:** ready-for-agent
 

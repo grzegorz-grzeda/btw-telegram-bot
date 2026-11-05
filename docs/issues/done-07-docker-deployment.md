@@ -1,6 +1,6 @@
 # 07: Docker deployment
 
-**What to build:** The bot runs in Docker, deployed the same way on the Raspberry Pi and the VPS: `git pull` then `docker compose up -d --build` in the repo checkout. The database lives in a bind-mounted `./data` folder next to the compose file, and configuration still comes from `.env`. The systemd deployment is removed. The docs describe deploying, updating and moving from the Pi to the VPS. Spec user stories 45–51.
+**What to build:** The bot runs in Docker, deployed the same way on the Raspberry Pi and the VPS: `git pull` then `docker compose up -d --build` in the repo checkout. The database lives in a bind-mounted `./data` folder next to the compose file, and configuration still comes from `.env`. The systemd deployment is removed. The docs describe deploying, updating and moving from the Pi to the VPS. [Spec](../specs/item-types.md) user stories 45–51.
 
 **Blocked by:** None (can start immediately)
 

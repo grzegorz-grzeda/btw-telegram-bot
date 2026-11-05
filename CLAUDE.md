@@ -46,7 +46,7 @@ Config is in `.env.example`.
 
 ### Issue tracker
 
-Local markdown files under `docs/issues/<feature-slug>/`, committed with the code. See `docs/agents/issue-tracker.md`.
+Local markdown files, committed with the code: tickets in `docs/issues/` with one running number, specs in `docs/specs/`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

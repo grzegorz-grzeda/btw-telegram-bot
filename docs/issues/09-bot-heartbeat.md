@@ -1,6 +1,6 @@
-# 01: Bot heartbeat
+# 09: Bot heartbeat
 
-**What to build:** When `BTW_HEARTBEAT_URL` is set, the bot pings it after a successful poll, at most every 5 minutes, so an outside dead man's switch notices when the bot stops polling. The README explains setting up the check. Spec user stories 1, 2, 4, 5, 6.
+**What to build:** When `BTW_HEARTBEAT_URL` is set, the bot pings it after a successful poll, at most every 5 minutes, so an outside dead man's switch notices when the bot stops polling. The README explains setting up the check. [Spec](../specs/health-checks.md) user stories 1, 2, 4, 5, 6.
 
 **Blocked by:** none
 

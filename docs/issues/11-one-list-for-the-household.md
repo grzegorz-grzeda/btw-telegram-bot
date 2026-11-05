@@ -1,6 +1,6 @@
-# 01: One List for the household
+# 11: One List for the household
 
-**What to build:** Every allowed user sees and changes the same List from their own private chat. The store stops scoping items by chat, existing items from every chat form the household List, and help text and README describe the List as shared. Spec user stories 1–8.
+**What to build:** Every allowed user sees and changes the same List from their own private chat. The store stops scoping items by chat, existing items from every chat form the household List, and help text and README describe the List as shared. [Spec](../specs/household-list.md) user stories 1–8.
 
 **Blocked by:** none
 

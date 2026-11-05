@@ -1,6 +1,6 @@
 # 03: Type prompt for unprefixed items
 
-**What to build:** When a message adds items without a prefix, the bot's reply carries [🍎 Food] [🛒 Stuff] [✅ Do] buttons. One prompt covers every unprefixed line of that message. Tapping a type files those items and edits the reply to say where they went ("Added to 🍎 Food: milk"). Prefixed lines in the same message are filed immediately, without the prompt. An old prompt can never overwrite a type chosen later. Spec user stories 7, 8, 10, 11, 33, 37.
+**What to build:** When a message adds items without a prefix, the bot's reply carries [🍎 Food] [🛒 Stuff] [✅ Do] buttons. One prompt covers every unprefixed line of that message. Tapping a type files those items and edits the reply to say where they went ("Added to 🍎 Food: milk"). Prefixed lines in the same message are filed immediately, without the prompt. An old prompt can never overwrite a type chosen later. [Spec](../specs/item-types.md) user stories 7, 8, 10, 11, 33, 37.
 
 **Blocked by:** 02 (Item types via prefixes, grouped list, /move)
 

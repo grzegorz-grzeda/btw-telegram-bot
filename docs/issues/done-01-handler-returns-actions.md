@@ -1,6 +1,6 @@
 # 01: Handler returns actions (prefactor)
 
-**What to build:** Change the bot's core so the handler receives a raw Telegram update (a text message or a button tap) and returns a list of actions (send a message, edit a message, answer a tap) instead of a reply string. The polling loop executes those actions. Users see no change: every existing command behaves exactly as before. This is the seam that every later ticket tests through, and it keeps a future webhook entry point cheap. See the spec: Implementation Decisions, "Handler" and "Telegram client and polling loop".
+**What to build:** Change the bot's core so the handler receives a raw Telegram update (a text message or a button tap) and returns a list of actions (send a message, edit a message, answer a tap) instead of a reply string. The polling loop executes those actions. Users see no change: every existing command behaves exactly as before. This is the seam that every later ticket tests through, and it keeps a future webhook entry point cheap. See the [spec](../specs/item-types.md): Implementation Decisions, "Handler" and "Telegram client and polling loop".
 
 **Blocked by:** None (can start immediately)
 

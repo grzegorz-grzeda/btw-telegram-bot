@@ -1,6 +1,6 @@
-# 03: Answer outsiders' taps
+# 13: Answer outsiders' taps
 
-**What to build:** A button tap from someone not in `BTW_ALLOWED_USERS` is answered with "You're not on this bot's list", so their spinner clears. Their messages stay silently ignored. Spec user story 10.
+**What to build:** A button tap from someone not in `BTW_ALLOWED_USERS` is answered with "You're not on this bot's list", so their spinner clears. Their messages stay silently ignored. [Spec](../specs/household-list.md) user story 10.
 
 **Blocked by:** none
 

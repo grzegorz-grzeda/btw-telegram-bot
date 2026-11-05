@@ -1,6 +1,6 @@
 # 04: Tap to tick off, with Undo
 
-**What to build:** The `/list` message gets one full-width [✔️ item text] button per item. Tapping a typed item marks it Done, redraws the list in the same message, and sends a short "✔️ milk" message with a [↩️ Undo] button. Undo brings the item back with the type it had and edits that message to "↩️ Restored: milk". Buttons for items that are done or gone answer clearly instead of failing silently. (Tapping an Unsorted item is ticket 06. Until then it ticks the item off like any other.) Spec user stories 26–30, 33.
+**What to build:** The `/list` message gets one full-width [✔️ item text] button per item. Tapping a typed item marks it Done, redraws the list in the same message, and sends a short "✔️ milk" message with a [↩️ Undo] button. Undo brings the item back with the type it had and edits that message to "↩️ Restored: milk". Buttons for items that are done or gone answer clearly instead of failing silently. (Tapping an Unsorted item is ticket 06. Until then it ticks the item off like any other.) [Spec](../specs/item-types.md) user stories 26–30, 33.
 
 **Blocked by:** 02 (Item types via prefixes, grouped list, /move) — done
 

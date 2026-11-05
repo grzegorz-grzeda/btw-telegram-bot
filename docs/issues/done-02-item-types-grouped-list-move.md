@@ -1,6 +1,6 @@
 # 02: Item types via prefixes, grouped list, /move
 
-**What to build:** Items get a Type (Food, Stuff or Do) or are Unsorted. A line starting with `f `, `s ` or `d ` (any case) is filed under that type, with the prefix removed. Anything else is saved whole as Unsorted. There's no type prompt yet. `/list` shows the List grouped Food → Stuff → Do → Unsorted, with one running number across the groups. `/move N <f|s|d>` changes an item's type. The help text explains types and prefixes, and `/list`, `/move` and `/help` appear in Telegram's "/" menu. Items that existed before this change show up as Unsorted. Spec user stories 1–6, 9, 11–18, 25, 31, 32, 38–43.
+**What to build:** Items get a Type (Food, Stuff or Do) or are Unsorted. A line starting with `f `, `s ` or `d ` (any case) is filed under that type, with the prefix removed. Anything else is saved whole as Unsorted. There's no type prompt yet. `/list` shows the List grouped Food → Stuff → Do → Unsorted, with one running number across the groups. `/move N <f|s|d>` changes an item's type. The help text explains types and prefixes, and `/list`, `/move` and `/help` appear in Telegram's "/" menu. Items that existed before this change show up as Unsorted. [Spec](../specs/item-types.md) user stories 1–6, 9, 11–18, 25, 31, 32, 38–43.
 
 **Blocked by:** 01 (Handler returns actions)
 

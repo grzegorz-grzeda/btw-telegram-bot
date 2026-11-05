@@ -1,6 +1,6 @@
-# 05: Undo for /done
+# 15: Undo for /done
 
-**What to build:** `/done` sends an ↩️ Undo button for each item it ticked off, the same as tapping an item does, so a number that moved or a typo can be put right. Spec user story 19.
+**What to build:** `/done` sends an ↩️ Undo button for each item it ticked off, the same as tapping an item does, so a number that moved or a typo can be put right. [Spec](../specs/household-list.md) user story 19.
 
 **Blocked by:** none
 
