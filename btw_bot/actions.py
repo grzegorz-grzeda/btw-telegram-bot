@@ -2,6 +2,9 @@
 
 from dataclasses import dataclass
 
+# Telegram's limit on one message's text.
+MAX_MESSAGE_LENGTH = 4096
+
 
 @dataclass(frozen=True)
 class Button:

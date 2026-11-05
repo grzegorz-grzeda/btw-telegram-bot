@@ -4,9 +4,7 @@ import json
 import urllib.error
 import urllib.request
 
-from .actions import Buttons
-
-MAX_MESSAGE_LENGTH = 4096
+from .actions import MAX_MESSAGE_LENGTH, Buttons
 
 
 class TelegramError(Exception):

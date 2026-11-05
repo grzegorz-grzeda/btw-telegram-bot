@@ -1,7 +1,7 @@
 """SQLite storage for to-do items, one list per Telegram chat."""
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -10,10 +10,12 @@ CREATE TABLE IF NOT EXISTS items (
     text       TEXT    NOT NULL,
     type       TEXT,   -- 'food', 'stuff', 'do', or NULL for Unsorted
     batch      INTEGER, -- items added by one message share it; NULL before batches existed
-    done       INTEGER NOT NULL DEFAULT 0,
+    done       INTEGER NOT NULL DEFAULT 0, -- 0 open, else the number of the tick that closed it
     created_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_items_chat_done ON items (chat_id, done);
+-- Numbers ticks. AUTOINCREMENT never reuses a number, so only the latest row is kept.
+CREATE TABLE IF NOT EXISTS ticks (id INTEGER PRIMARY KEY AUTOINCREMENT);
 """
 
 
@@ -22,6 +24,7 @@ class Item:
     id: str  # opaque outside the store
     text: str
     type: str | None = None  # None means Unsorted
+    done: bool = False
 
 
 class TodoStore:
@@ -74,17 +77,45 @@ class TodoStore:
         )
         return [Item(id=str(row[0]), text=row[1], type=row[2]) for row in rows]
 
+    def get(self, chat_id: int, item_id: str) -> Item | None:
+        """The chat's item with this ID, done or not; None if there's none."""
+        row = self._conn.execute(
+            "SELECT id, text, type, done FROM items WHERE chat_id = ? AND id = ?",
+            (chat_id, _rowid(item_id)),
+        ).fetchone()
+        if row is None:
+            return None
+        return Item(id=str(row[0]), text=row[1], type=row[2], done=bool(row[3]))
+
     def set_type(self, item_id: str, item_type: str | None) -> None:
         with self._conn:
             self._conn.execute(
                 "UPDATE items SET type = ? WHERE id = ?", (item_type, _rowid(item_id))
             )
 
-    def mark_done(self, item_ids: list[str]) -> None:
+    def mark_done(self, item_ids: list[str]) -> str:
+        """Mark items done; return a key for this tick (opaque), which undo_done needs.
+        Each tick gets a new key, so an Undo from an earlier tick can't reopen an item."""
         with self._conn:
+            self._conn.execute("DELETE FROM ticks")
+            tick = self._conn.execute("INSERT INTO ticks DEFAULT VALUES").lastrowid
             self._conn.executemany(
-                "UPDATE items SET done = 1 WHERE id = ?", [(_rowid(i),) for i in item_ids]
+                "UPDATE items SET done = ? WHERE id = ?", [(tick, _rowid(i)) for i in item_ids]
             )
+        return str(tick)
+
+    def undo_done(self, chat_id: int, item_id: str, tick: str) -> Item | None:
+        """Reopen the chat's item if it's still done from that tick; return it, else None.
+        The item keeps the type it had."""
+        item = self.get(chat_id, item_id)
+        if item is None:
+            return None
+        with self._conn:
+            reopened = self._conn.execute(
+                "UPDATE items SET done = 0 WHERE id = ? AND done = ? AND done != 0",
+                (_rowid(item.id), _rowid(tick)),
+            ).rowcount
+        return replace(item, done=False) if reopened else None
 
     def close(self) -> None:
         self._conn.close()

@@ -287,6 +287,136 @@ class TypePromptTest(unittest.TestCase):
         self.assertEqual(self.list_text(), "❓ Unsorted\n1. milk")
 
 
+class TickTest(unittest.TestCase):
+    """One [✔️ item] button per item in /list; tapping it ticks the item off, with Undo."""
+
+    def setUp(self):
+        self.store = TodoStore(":memory:")
+        self.addCleanup(self.store.close)
+
+    def send(self, text, chat_id=CHAT):
+        """Send a text message; return the single reply."""
+        (reply,) = handle(self.store, text_update(text, chat_id))
+        self.assertIsInstance(reply, SendMessage)
+        return reply
+
+    def list_text(self):
+        return self.send("/list").text
+
+    def labels(self, reply):
+        return [[b.label for b in row] for row in reply.buttons or []]
+
+    def tap(self, reply, label, chat_id=CHAT, message_id=55):
+        """Tap the button labelled `label` on `reply`; return the actions after the one answer."""
+        (data,) = [b.data for row in reply.buttons or [] for b in row if b.label == label]
+        update = tap_update(data, chat_id=chat_id, tap_id="t1")
+        update["callback_query"]["message"]["message_id"] = message_id
+        actions = handle(self.store, update)
+        answers = [a for a in actions if isinstance(a, AnswerTap)]
+        self.assertEqual(len(answers), 1, actions)
+        # The answer comes first, so the spinner clears even if a later action fails.
+        self.assertEqual(actions[0], answers[0])
+        self.assertEqual(answers[0].tap_id, "t1")
+        return actions
+
+    def test_list_has_one_full_width_button_per_item_in_list_order(self):
+        self.send("d call mum\nf milk\nhammer")
+        reply = self.send("/list")
+        self.assertEqual(self.labels(reply), [["✔️ milk"], ["✔️ call mum"], ["✔️ hammer"]])
+
+    def test_empty_list_has_no_buttons(self):
+        self.assertIsNone(self.send("/list").buttons)
+
+    def test_tapping_an_item_ticks_it_off_and_redraws_the_list_in_place(self):
+        self.send("f milk\nf eggs\nd call mum")
+        actions = self.tap(self.send("/list"), "✔️ eggs", message_id=55)
+        (edit,) = [a for a in actions if isinstance(a, EditMessage)]
+        self.assertEqual((edit.chat_id, edit.message_id), (CHAT, 55))
+        self.assertEqual(edit.text, "🍎 Food\n1. milk\n\n✅ Do\n2. call mum")
+        self.assertEqual(self.labels(edit), [["✔️ milk"], ["✔️ call mum"]])
+        self.assertEqual(self.list_text(), "🍎 Food\n1. milk\n\n✅ Do\n2. call mum")
+
+    def test_tick_sends_a_short_message_with_undo(self):
+        self.send("f milk")
+        actions = self.tap(self.send("/list"), "✔️ milk")
+        (sent,) = [a for a in actions if isinstance(a, SendMessage)]
+        self.assertEqual((sent.chat_id, sent.text), (CHAT, "✔️ milk"))
+        self.assertEqual(self.labels(sent), [["↩️ Undo"]])
+
+    def tick(self, label):
+        """Tick `label` off a fresh /list; return the "✔️ ..." message sent."""
+        actions = self.tap(self.send("/list"), label)
+        (sent,) = [a for a in actions if isinstance(a, SendMessage)]
+        return sent
+
+    def test_undo_restores_the_item_with_its_type_and_edits_the_message(self):
+        self.send("f milk\ns bulbs\nd call mum")
+        undo = self.tick("✔️ bulbs")
+        actions = self.tap(undo, "↩️ Undo", message_id=77)
+        self.assertEqual(actions, [AnswerTap("t1"), EditMessage(CHAT, 77, "↩️ Restored: bulbs")])
+        self.assertEqual(
+            self.list_text(), "🍎 Food\n1. milk\n\n🛒 Stuff\n2. bulbs\n\n✅ Do\n3. call mum"
+        )
+
+    def assert_gone(self, actions):
+        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on your list")])
+
+    def test_undo_after_the_item_was_ticked_off_again_says_gone(self):
+        self.send("f milk")
+        undo = self.tick("✔️ milk")
+        self.tap(undo, "↩️ Undo")
+        self.send("/done 1")
+        self.assert_gone(self.tap(undo, "↩️ Undo"))
+        self.assertEqual(self.list_text(), "Your list is empty.")
+
+    def test_undo_after_the_item_was_restored_says_gone(self):
+        self.send("f milk")
+        undo = self.tick("✔️ milk")
+        self.tap(undo, "↩️ Undo")
+        self.assert_gone(self.tap(undo, "↩️ Undo"))
+        self.assertEqual(self.list_text(), "🍎 Food\n1. milk")
+
+    def test_button_for_an_item_already_done_says_gone_and_changes_nothing(self):
+        self.send("f milk\nf eggs")
+        old_list = self.send("/list")
+        self.send("/done 1")
+        self.assert_gone(self.tap(old_list, "✔️ milk"))
+        self.assertEqual(self.list_text(), "🍎 Food\n1. eggs")
+
+    def test_buttons_tapped_from_another_chat_change_nothing(self):
+        self.send("f milk\nf eggs")
+        self.assert_gone(self.tap(self.send("/list"), "✔️ milk", chat_id=OTHER_CHAT))
+        undo = self.tick("✔️ eggs")
+        self.assert_gone(self.tap(undo, "↩️ Undo", chat_id=OTHER_CHAT))
+        self.assertEqual(self.list_text(), "🍎 Food\n1. milk")
+
+    def test_list_shows_at_most_90_buttons_and_the_rest_with_done(self):
+        self.send("\n".join(f"f item {n}" for n in range(1, 96)))
+        reply = self.send("/list")
+        self.assertIn("95. item 95", reply.text)
+        labels = self.labels(reply)
+        self.assertEqual(len(labels), 90)
+        self.assertEqual(labels[-1], ["✔️ item 90"])
+        self.assertEqual(self.send("/done 95").text, "Done: item 95")
+
+    def test_redraw_too_long_to_edit_is_sent_as_a_new_list_message(self):
+        long = "x" * 1000
+        self.send("\n".join(f"f {long} {n}" for n in range(1, 7)))
+        actions = self.tap(self.send("/list"), f"✔️ {long} 1", message_id=55)
+        self.assertEqual([type(a) for a in actions], [AnswerTap, SendMessage, SendMessage])
+        new_list, undo = actions[1:]
+        self.assertEqual(new_list.text, self.list_text())
+        self.assertEqual(len(self.labels(new_list)), 5)
+        self.assertEqual(undo.text, f"✔️ {long} 1")
+
+    def test_ticking_the_last_item_redraws_an_empty_list(self):
+        self.send("f milk")
+        actions = self.tap(self.send("/list"), "✔️ milk")
+        (edit,) = [a for a in actions if isinstance(a, EditMessage)]
+        self.assertEqual(edit.text, "Your list is empty.")
+        self.assertIsNone(edit.buttons)
+
+
 class PersistenceTest(unittest.TestCase):
     def test_items_survive_reopen(self):
         import os

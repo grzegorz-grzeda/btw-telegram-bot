@@ -1,6 +1,14 @@
 """Turns a Telegram update into a list of actions. No Telegram I/O here."""
 
-from .actions import Action, AnswerTap, Button, Buttons, EditMessage, SendMessage
+from .actions import (
+    MAX_MESSAGE_LENGTH,
+    Action,
+    AnswerTap,
+    Button,
+    Buttons,
+    EditMessage,
+    SendMessage,
+)
 from .db import Item, TodoStore
 
 # Types in list order. Unsorted (None) is not a type; it's listed last.
@@ -8,6 +16,8 @@ TYPES = ("food", "stuff", "do")
 PREFIXES = {"f": "food", "s": "stuff", "d": "do"}
 GROUP_NAMES = {"food": "🍎 Food", "stuff": "🛒 Stuff", "do": "✅ Do", None: "❓ Unsorted"}
 GONE = "That item is no longer on your list"
+# Telegram allows 100 buttons per message; the rest of the list is ticked off with /done N.
+MAX_ITEM_BUTTONS = 90
 
 HELP = """\
 Just send me a message and I'll add it to your list.
@@ -19,7 +29,7 @@ s bulbs - 🛒 Stuff to buy that isn't food
 d call dentist - ✅ Do (anything that isn't buying)
 Without a prefix, the item goes to ❓ Unsorted.
 
-/list - show your list, grouped by type
+/list - show your list, grouped by type (tap an item to tick it off)
 /done 2 - mark item 2 as done (several: /done 1 3)
 /move 3 s - give item 3 another type (f, s or d)
 /add text - add an item (same as sending plain text)
@@ -49,14 +59,60 @@ def handle(store: TodoStore, update: dict) -> list[Action]:
 
 # Button data is "<action>:<argument>:...", written and parsed only in this module.
 TYPE_PROMPT = "t"  # "t:<type letter>:<batch key>"
+TICK = "x"  # "x:<item id>", on each item in /list
+UNDO = "u"  # "u:<item id>:<tick key>", on the message sent after a tick
 
 
 def _tap(store: TodoStore, tap: dict) -> list[Action]:
     """Every tap yields exactly one AnswerTap, so Telegram's spinner always clears."""
     message = tap.get("message")
     action, _, rest = (tap.get("data") or "").partition(":")
+    if not message or not rest:
+        return [AnswerTap(tap["id"])]
+    if action == TYPE_PROMPT:
+        return _type_tap(store, tap, rest)
+    if action == TICK:
+        return _tick_tap(store, tap, rest)
+    if action == UNDO:
+        return _undo_tap(store, tap, rest)
+    return [AnswerTap(tap["id"])]
+
+
+def _tick_tap(store: TodoStore, tap: dict, item_id: str) -> list[Action]:
+    message = tap["message"]
+    chat_id = message["chat"]["id"]
+    item = store.get(chat_id, item_id)
+    if item is None or item.done:
+        return [AnswerTap(tap["id"], GONE)]
+    tick = store.mark_done([item.id])
+    text, buttons = _list(store, chat_id)
+    # An edit can't be split like a sent message, so a list that's too long is sent anew.
+    if len(text) > MAX_MESSAGE_LENGTH:
+        redraw = SendMessage(chat_id, text, buttons)
+    else:
+        redraw = EditMessage(chat_id, message["message_id"], text, buttons)
+    return [
+        AnswerTap(tap["id"]),
+        redraw,
+        SendMessage(chat_id, f"✔️ {item.text}", [[Button("↩️ Undo", f"{UNDO}:{item.id}:{tick}")]]),
+    ]
+
+
+def _undo_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
+    message = tap["message"]
+    chat_id = message["chat"]["id"]
+    item_id, _, tick = rest.partition(":")
+    item = store.undo_done(chat_id, item_id, tick)
+    if item is None:
+        return [AnswerTap(tap["id"], GONE)]
+    text = f"↩️ Restored: {item.text}"
+    return [AnswerTap(tap["id"]), EditMessage(chat_id, message["message_id"], text)]
+
+
+def _type_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
+    message = tap["message"]
     letter, _, batch = rest.partition(":")
-    if not message or action != TYPE_PROMPT or letter not in PREFIXES or not batch:
+    if letter not in PREFIXES or not batch:
         return [AnswerTap(tap["id"])]
     chat_id = message["chat"]["id"]
     item_type = PREFIXES[letter]
@@ -142,16 +198,20 @@ def _group_rank(item_type: str | None) -> int:
     return TYPES.index(item_type) if item_type in TYPES else len(TYPES)
 
 
-def _list(store: TodoStore, chat_id: int) -> str:
+def _list(store: TodoStore, chat_id: int) -> tuple[str, Buttons | None]:
+    """The list text, and one full-width tick button per item."""
     items = _grouped(store, chat_id)
     if not items:
-        return "Your list is empty."
+        return "Your list is empty.", None
     sections = []
     for n, item in enumerate(items, start=1):
         if n == 1 or item.type != items[n - 2].type:
             sections.append([GROUP_NAMES[item.type]])
         sections[-1].append(f"{n}. {item.text}")
-    return "\n\n".join("\n".join(section) for section in sections)
+    text = "\n\n".join("\n".join(section) for section in sections)
+    shown = items[:MAX_ITEM_BUTTONS]
+    buttons = [[Button(f"✔️ {item.text}", f"{TICK}:{item.id}")] for item in shown]
+    return text, buttons
 
 
 def _done(store: TodoStore, chat_id: int, args: str) -> str:
