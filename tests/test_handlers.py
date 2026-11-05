@@ -1,6 +1,6 @@
 import unittest
 
-from btw_bot.actions import AnswerTap, SendMessage
+from btw_bot.actions import AnswerTap, EditMessage, SendMessage
 from btw_bot.db import TodoStore
 from btw_bot.handlers import HELP, handle
 
@@ -176,6 +176,116 @@ class HandleTest(unittest.TestCase):
         for bad in ("/move", "/move 1", "/move 2 s", "/move 0 s", "/move x s", "/move 1 x", "/move 1 s d"):
             self.assertIn("Usage: /move 3 s", self.send(bad), bad)
         self.assertEqual(self.send("/list"), "🍎 Food\n1. milk")
+
+
+class TypePromptTest(unittest.TestCase):
+    """The [🍎 Food] [🛒 Stuff] [✅ Do] prompt on replies to unprefixed items."""
+
+    def setUp(self):
+        self.store = TodoStore(":memory:")
+        self.addCleanup(self.store.close)
+
+    def send(self, text, chat_id=CHAT):
+        """Send a text message; return the single reply."""
+        (reply,) = handle(self.store, text_update(text, chat_id))
+        self.assertIsInstance(reply, SendMessage)
+        return reply
+
+    def list_text(self):
+        return self.send("/list").text
+
+    def tap(self, reply, label, chat_id=CHAT, message_id=55):
+        """Tap the button labelled `label` on `reply`; return the actions."""
+        (data,) = [b.data for row in reply.buttons or [] for b in row if b.label == label]
+        update = tap_update(data, chat_id=chat_id, tap_id="t1")
+        update["callback_query"]["message"]["message_id"] = message_id
+        actions = handle(self.store, update)
+        answers = [a for a in actions if isinstance(a, AnswerTap)]
+        self.assertEqual(len(answers), 1, actions)
+        self.assertEqual(answers[0].tap_id, "t1")
+        return actions
+
+    def edit_text(self, reply, label):
+        """Tap `label` on `reply`; return the text the reply is edited to."""
+        (edit,) = [a for a in self.tap(reply, label) if isinstance(a, EditMessage)]
+        return edit.text
+
+    def labels(self, reply):
+        return [[b.label for b in row] for row in reply.buttons or []]
+
+    def test_unprefixed_item_gets_type_buttons_and_is_already_unsorted(self):
+        reply = self.send("milk")
+        self.assertEqual(reply.text, "Added to ❓ Unsorted: milk")
+        self.assertEqual(self.labels(reply), [["🍎 Food", "🛒 Stuff", "✅ Do"]])
+        self.assertEqual(self.list_text(), "❓ Unsorted\n1. milk")
+
+    def test_prefixed_items_get_no_prompt(self):
+        self.assertIsNone(self.send("f milk\ns bulbs").buttons)
+
+    def test_tapping_a_type_files_the_item_and_edits_the_reply(self):
+        reply = self.send("milk")
+        actions = self.tap(reply, "🍎 Food", message_id=55)
+        # The answer comes first, so the spinner clears even if the edit fails.
+        self.assertEqual(
+            actions, [AnswerTap("t1"), EditMessage(CHAT, 55, "Added to 🍎 Food: milk")]
+        )
+        self.assertEqual(self.list_text(), "🍎 Food\n1. milk")
+
+    def test_one_prompt_files_every_unprefixed_line_of_a_message(self):
+        reply = self.send("bread\nbutter\njam")
+        self.assertEqual(self.labels(reply), [["🍎 Food", "🛒 Stuff", "✅ Do"]])
+        edit_text = self.edit_text(reply, "🍎 Food")
+        self.assertEqual(edit_text, "Added to 🍎 Food: bread; butter; jam")
+        self.assertEqual(self.list_text(), "🍎 Food\n1. bread\n2. butter\n3. jam")
+
+    def test_mixed_message_files_prefixed_lines_now_and_prompts_for_the_rest(self):
+        reply = self.send("s bulbs\nhammer\nd call mum\nnails")
+        self.assertEqual(
+            self.list_text(),
+            "🛒 Stuff\n1. bulbs\n\n✅ Do\n2. call mum\n\n❓ Unsorted\n3. hammer\n4. nails",
+        )
+        edit_text = self.edit_text(reply, "🛒 Stuff")
+        self.assertEqual(edit_text, "Added to 🛒 Stuff: hammer; nails")
+        self.assertEqual(
+            self.list_text(), "🛒 Stuff\n1. bulbs\n2. hammer\n3. nails\n\n✅ Do\n4. call mum"
+        )
+
+    def test_button_data_fits_telegram_limit_for_many_lines(self):
+        reply = self.send("\n".join(f"item number {n}" for n in range(200)))
+        for row in reply.buttons:
+            for button in row:
+                self.assertLessEqual(len(button.data.encode()), 64, button)
+        self.tap(reply, "✅ Do")
+        self.assertNotIn("Unsorted", self.list_text())
+
+    def test_old_prompt_only_files_items_still_unsorted_and_not_done(self):
+        reply = self.send("bread\nbatteries\nbin bags")
+        self.send("/move 2 s")  # batteries
+        self.send("/done 3")  # bin bags is number 3: Stuff first, then Unsorted bread, bin bags
+        edit_text = self.edit_text(reply, "🍎 Food")
+        self.assertEqual(edit_text, "Added to 🍎 Food: bread")
+        self.assertEqual(self.list_text(), "🍎 Food\n1. bread\n\n🛒 Stuff\n2. batteries")
+
+    def test_old_prompt_never_overwrites_a_later_choice(self):
+        reply = self.send("milk")
+        self.tap(reply, "🍎 Food")
+        actions = self.tap(reply, "✅ Do")
+        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on your list")])
+        self.assertEqual(self.list_text(), "🍎 Food\n1. milk")
+
+    def test_prompt_for_items_all_gone_says_so_and_changes_nothing(self):
+        reply = self.send("milk\neggs")
+        self.send("/done 1 2")
+        actions = self.tap(reply, "🍎 Food")
+        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on your list")])
+        self.assertEqual(self.list_text(), "Your list is empty.")
+
+    def test_prompt_tapped_from_another_chat_changes_nothing(self):
+        reply = self.send("milk")
+        actions = self.tap(reply, "🍎 Food", chat_id=OTHER_CHAT)
+        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on your list")])
+        self.assertEqual(self.list_text(), "❓ Unsorted\n1. milk")
+
 
 class PersistenceTest(unittest.TestCase):
     def test_items_survive_reopen(self):

@@ -1,12 +1,13 @@
 """Turns a Telegram update into a list of actions. No Telegram I/O here."""
 
-from .actions import Action, AnswerTap, SendMessage
+from .actions import Action, AnswerTap, Button, Buttons, EditMessage, SendMessage
 from .db import Item, TodoStore
 
 # Types in list order. Unsorted (None) is not a type; it's listed last.
 TYPES = ("food", "stuff", "do")
 PREFIXES = {"f": "food", "s": "stuff", "d": "do"}
 GROUP_NAMES = {"food": "🍎 Food", "stuff": "🛒 Stuff", "do": "✅ Do", None: "❓ Unsorted"}
+GONE = "That item is no longer on your list"
 
 HELP = """\
 Just send me a message and I'll add it to your list.
@@ -36,15 +37,46 @@ def handle(store: TodoStore, update: dict) -> list[Action]:
     """Handle one raw Telegram update (a text message or a button tap)."""
     tap = update.get("callback_query")
     if tap:
-        return [AnswerTap(tap["id"])]
+        return _tap(store, tap)
     message = update.get("message")
     if not message or "text" not in message:
         return []
     chat_id = message["chat"]["id"]
-    return [SendMessage(chat_id, _reply(store, chat_id, message["text"]))]
+    reply = _reply(store, chat_id, message["text"])
+    text, buttons = (reply, None) if isinstance(reply, str) else reply
+    return [SendMessage(chat_id, text, buttons)]
 
 
-def _reply(store: TodoStore, chat_id: int, text: str) -> str:
+# Button data is "<action>:<argument>:...", written and parsed only in this module.
+TYPE_PROMPT = "t"  # "t:<type letter>:<batch key>"
+
+
+def _tap(store: TodoStore, tap: dict) -> list[Action]:
+    """Every tap yields exactly one AnswerTap, so Telegram's spinner always clears."""
+    message = tap.get("message")
+    action, _, rest = (tap.get("data") or "").partition(":")
+    letter, _, batch = rest.partition(":")
+    if not message or action != TYPE_PROMPT or letter not in PREFIXES or not batch:
+        return [AnswerTap(tap["id"])]
+    chat_id = message["chat"]["id"]
+    item_type = PREFIXES[letter]
+    typed = store.type_batch(chat_id, batch, item_type)
+    if not typed:
+        return [AnswerTap(tap["id"], GONE)]
+    text = _added_to(item_type, [item.text for item in typed])
+    # Answer first: if the edit fails, the spinner must still clear.
+    return [AnswerTap(tap["id"]), EditMessage(chat_id, message["message_id"], text)]
+
+
+def _added_to(item_type: str | None, texts: list[str]) -> str:
+    return f"Added to {GROUP_NAMES[item_type]}: " + "; ".join(texts)
+
+
+def _type_prompt(batch: str) -> Buttons:
+    return [[Button(GROUP_NAMES[t], f"{TYPE_PROMPT}:{letter}:{batch}") for letter, t in PREFIXES.items()]]
+
+
+def _reply(store: TodoStore, chat_id: int, text: str) -> str | tuple[str, Buttons | None]:
     # Not stripped on the right: "f " is a prefix with nothing after it, not the item "f".
     if not text.lstrip().startswith("/"):
         return _add(store, chat_id, text)
@@ -79,22 +111,24 @@ def _parse_line(line: str) -> tuple[str, str | None] | None:
     return rest.strip(), item_type
 
 
-def _add(store: TodoStore, chat_id: int, text: str) -> str:
+def _add(store: TodoStore, chat_id: int, text: str) -> str | tuple[str, Buttons | None]:
+    """Add each line as an item. Unsorted ones get one type prompt for the whole message."""
     parsed = [_parse_line(line.lstrip()) for line in text.splitlines() if line.strip()]
     added = [p for p in parsed if p is not None]
     if not added:
         return "Nothing to add. Send me some text, e.g. f milk"
-    for item_text, item_type in added:
-        store.add(chat_id, item_text, item_type)
+    batch = store.add_batch(chat_id, added)
+    has_unsorted = any(item_type is None for _, item_type in added)
+    buttons = _type_prompt(batch) if has_unsorted else None
     if len(added) == 1:
         item_text, item_type = added[0]
-        return f"Added to {GROUP_NAMES[item_type]}: {item_text}"
+        return _added_to(item_type, [item_text]), buttons
     lines = [f"Added {len(added)} items:"]
     for item_type in (*TYPES, None):
         texts = [text for text, its_type in added if its_type == item_type]
         if texts:
             lines.append(f"{GROUP_NAMES[item_type]}: " + "; ".join(texts))
-    return "\n".join(lines)
+    return "\n".join(lines), buttons
 
 
 def _grouped(store: TodoStore, chat_id: int) -> list[Item]:
