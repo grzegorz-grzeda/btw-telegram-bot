@@ -287,8 +287,8 @@ class TypePromptTest(unittest.TestCase):
         self.assertEqual(self.list_text(), "❓ Unsorted\n1. milk")
 
 
-class TickTest(unittest.TestCase):
-    """One [✔️ item] button per item in /list; tapping it ticks the item off, with Undo."""
+class ListTestCase(unittest.TestCase):
+    """Helpers for tests that read and tap the /list message."""
 
     def setUp(self):
         self.store = TodoStore(":memory:")
@@ -319,10 +319,23 @@ class TickTest(unittest.TestCase):
         self.assertEqual(answers[0].tap_id, "t1")
         return actions
 
+    def item_labels(self, reply):
+        """Labels of the item buttons, below the filter row."""
+        return self.labels(reply)[1:]
+
+
+FILTER_ROW = ["• All", "🍎", "🛒", "✅"]
+
+
+class TickTest(ListTestCase):
+    """One [✔️ item] button per item in /list; tapping it ticks the item off, with Undo."""
+
     def test_list_has_one_full_width_button_per_item_in_list_order(self):
         self.send("d call mum\nf milk\nhammer")
         reply = self.send("/list")
-        self.assertEqual(self.labels(reply), [["✔️ milk"], ["✔️ call mum"], ["✔️ hammer"]])
+        self.assertEqual(
+            self.labels(reply), [FILTER_ROW, ["✔️ milk"], ["✔️ call mum"], ["✔️ hammer"]]
+        )
 
     def test_empty_list_has_no_buttons(self):
         self.assertIsNone(self.send("/list").buttons)
@@ -333,7 +346,7 @@ class TickTest(unittest.TestCase):
         (edit,) = [a for a in actions if isinstance(a, EditMessage)]
         self.assertEqual((edit.chat_id, edit.message_id), (CHAT, 55))
         self.assertEqual(edit.text, "🍎 Food\n1. milk\n\n✅ Do\n2. call mum")
-        self.assertEqual(self.labels(edit), [["✔️ milk"], ["✔️ call mum"]])
+        self.assertEqual(self.item_labels(edit), [["✔️ milk"], ["✔️ call mum"]])
         self.assertEqual(self.list_text(), "🍎 Food\n1. milk\n\n✅ Do\n2. call mum")
 
     def test_tick_sends_a_short_message_with_undo(self):
@@ -394,7 +407,7 @@ class TickTest(unittest.TestCase):
         self.send("\n".join(f"f item {n}" for n in range(1, 96)))
         reply = self.send("/list")
         self.assertIn("95. item 95", reply.text)
-        labels = self.labels(reply)
+        labels = self.item_labels(reply)
         self.assertEqual(len(labels), 90)
         self.assertEqual(labels[-1], ["✔️ item 90"])
         self.assertEqual(self.send("/done 95").text, "Done: item 95")
@@ -406,7 +419,7 @@ class TickTest(unittest.TestCase):
         self.assertEqual([type(a) for a in actions], [AnswerTap, SendMessage, SendMessage])
         new_list, undo = actions[1:]
         self.assertEqual(new_list.text, self.list_text())
-        self.assertEqual(len(self.labels(new_list)), 5)
+        self.assertEqual(len(self.item_labels(new_list)), 5)
         self.assertEqual(undo.text, f"✔️ {long} 1")
 
     def test_ticking_the_last_item_redraws_an_empty_list(self):
@@ -415,6 +428,76 @@ class TickTest(unittest.TestCase):
         (edit,) = [a for a in actions if isinstance(a, EditMessage)]
         self.assertEqual(edit.text, "Your list is empty.")
         self.assertIsNone(edit.buttons)
+
+
+class FilterTest(ListTestCase):
+    """The [All] [🍎] [🛒] [✅] row on /list narrows it to one type, keeping item numbers."""
+
+    def edit_after(self, actions):
+        (edit,) = [a for a in actions if isinstance(a, EditMessage)]
+        return edit
+
+    def test_tapping_a_filter_shows_only_that_type_in_place_with_full_list_numbers(self):
+        self.send("f milk\nf eggs\ns bulbs\nd call mum\nhammer")
+        actions = self.tap(self.send("/list"), "🛒", message_id=55)
+        self.assertEqual(len(actions), 2, actions)
+        edit = self.edit_after(actions)
+        self.assertEqual((edit.chat_id, edit.message_id), (CHAT, 55))
+        self.assertEqual(edit.text, "🛒 Stuff\n3. bulbs")
+        self.assertEqual(self.labels(edit), [["All", "🍎", "• 🛒", "✅"], ["✔️ bulbs"]])
+
+    def test_all_shows_everything_again_including_unsorted(self):
+        self.send("f milk\nhammer")
+        food = self.edit_after(self.tap(self.send("/list"), "🍎"))
+        self.assertEqual(food.text, "🍎 Food\n1. milk")
+        everything = self.edit_after(self.tap(food, "All"))
+        self.assertEqual(everything.text, "🍎 Food\n1. milk\n\n❓ Unsorted\n2. hammer")
+        self.assertEqual(self.labels(everything)[0], FILTER_ROW)
+
+    def test_ticking_in_a_filtered_view_keeps_the_filter(self):
+        self.send("f milk\nf eggs\ns bulbs\nd call mum")
+        food = self.edit_after(self.tap(self.send("/list"), "🍎"))
+        redrawn = self.edit_after(self.tap(food, "✔️ milk"))
+        self.assertEqual(redrawn.text, "🍎 Food\n1. eggs")
+        self.assertEqual(self.labels(redrawn), [["All", "• 🍎", "🛒", "✅"], ["✔️ eggs"]])
+
+    def test_filtered_view_with_no_items_says_so_and_keeps_the_filter_row(self):
+        self.send("f milk")
+        do = self.edit_after(self.tap(self.send("/list"), "✅"))
+        self.assertEqual(do.text, "No Do items.")
+        self.assertEqual(self.labels(do), [["All", "🍎", "🛒", "• ✅"]])
+
+    def test_list_with_a_type_opens_filtered(self):
+        self.send("f milk\ns bulbs\nd call mum")
+        for args, text, active in [
+            ("food", "🍎 Food\n1. milk", "• 🍎"),
+            ("F", "🍎 Food\n1. milk", "• 🍎"),
+            ("stuff", "🛒 Stuff\n2. bulbs", "• 🛒"),
+            ("s", "🛒 Stuff\n2. bulbs", "• 🛒"),
+            ("do", "✅ Do\n3. call mum", "• ✅"),
+            ("d", "✅ Do\n3. call mum", "• ✅"),
+        ]:
+            with self.subTest(args):
+                reply = self.send(f"/list {args}")
+                self.assertEqual(reply.text, text)
+                self.assertIn(active, self.labels(reply)[0])
+
+    def test_list_with_anything_else_explains_usage(self):
+        self.send("f milk")
+        for args in ("x", "food stuff", "unsorted", "a"):
+            with self.subTest(args):
+                reply = self.send(f"/list {args}")
+                self.assertEqual(
+                    reply.text, "Usage: /list, or /list food (f), /list stuff (s), /list do (d)"
+                )
+                self.assertIsNone(reply.buttons)
+
+    def test_ticking_the_last_item_of_a_filter_says_none_left(self):
+        self.send("f milk\ns bulbs")
+        food = self.edit_after(self.tap(self.send("/list"), "🍎"))
+        redrawn = self.edit_after(self.tap(food, "✔️ milk"))
+        self.assertEqual(redrawn.text, "No Food items.")
+        self.assertEqual(self.labels(redrawn), [["All", "• 🍎", "🛒", "✅"]])
 
 
 class PersistenceTest(unittest.TestCase):

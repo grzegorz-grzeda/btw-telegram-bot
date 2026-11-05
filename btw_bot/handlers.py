@@ -16,6 +16,11 @@ TYPES = ("food", "stuff", "do")
 PREFIXES = {"f": "food", "s": "stuff", "d": "do"}
 GROUP_NAMES = {"food": "🍎 Food", "stuff": "🛒 Stuff", "do": "✅ Do", None: "❓ Unsorted"}
 GONE = "That item is no longer on your list"
+# The filter row on /list: None shows everything. Only All shows Unsorted.
+FILTERS = (None, *TYPES)
+FILTER_LABELS = {None: "All", "food": "🍎", "stuff": "🛒", "do": "✅"}
+# How a filter is written in button data and typed after /list: a = All, then the prefixes.
+FILTER_LETTERS = {"a": None, **PREFIXES}
 # Telegram allows 100 buttons per message; the rest of the list is ticked off with /done N.
 MAX_ITEM_BUTTONS = 90
 
@@ -30,6 +35,7 @@ d call dentist - ✅ Do (anything that isn't buying)
 Without a prefix, the item goes to ❓ Unsorted.
 
 /list - show your list, grouped by type (tap an item to tick it off)
+/list f - show only Food (or s, d); the buttons on top filter too
 /done 2 - mark item 2 as done (several: /done 1 3)
 /move 3 s - give item 3 another type (f, s or d)
 /add text - add an item (same as sending plain text)
@@ -37,7 +43,7 @@ Without a prefix, the item goes to ❓ Unsorted.
 
 # The "/" menu Telegram shows; registered at startup.
 COMMANDS = [
-    ("list", "Show your list"),
+    ("list", "Show your list (/list f for only Food)"),
     ("move", "Change an item's type: /move 3 s"),
     ("help", "How to use the bot"),
 ]
@@ -59,7 +65,8 @@ def handle(store: TodoStore, update: dict) -> list[Action]:
 
 # Button data is "<action>:<argument>:...", written and parsed only in this module.
 TYPE_PROMPT = "t"  # "t:<type letter>:<batch key>"
-TICK = "x"  # "x:<item id>", on each item in /list
+FILTER = "l"  # "l:<filter letter>", on the filter row of /list
+TICK = "x"  # "x:<filter letter>:<item id>", on each item in /list
 UNDO = "u"  # "u:<item id>:<tick key>", on the message sent after a tick
 
 
@@ -71,6 +78,8 @@ def _tap(store: TodoStore, tap: dict) -> list[Action]:
         return [AnswerTap(tap["id"])]
     if action == TYPE_PROMPT:
         return _type_tap(store, tap, rest)
+    if action == FILTER:
+        return _filter_tap(store, tap, rest)
     if action == TICK:
         return _tick_tap(store, tap, rest)
     if action == UNDO:
@@ -78,22 +87,36 @@ def _tap(store: TodoStore, tap: dict) -> list[Action]:
     return [AnswerTap(tap["id"])]
 
 
-def _tick_tap(store: TodoStore, tap: dict, item_id: str) -> list[Action]:
+def _filter_tap(store: TodoStore, tap: dict, letter: str) -> list[Action]:
+    if letter not in FILTER_LETTERS:
+        return [AnswerTap(tap["id"])]
+    return [AnswerTap(tap["id"]), _redraw(store, tap["message"], FILTER_LETTERS[letter])]
+
+
+def _redraw(store: TodoStore, message: dict, only: str | None) -> Action:
+    """Redraw the list in the tapped message, filtered by `only`."""
+    chat_id = message["chat"]["id"]
+    text, buttons = _list(store, chat_id, only)
+    # An edit can't be split like a sent message, so a list that's too long is sent anew.
+    if len(text) > MAX_MESSAGE_LENGTH:
+        return SendMessage(chat_id, text, buttons)
+    return EditMessage(chat_id, message["message_id"], text, buttons)
+
+
+def _tick_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
     message = tap["message"]
     chat_id = message["chat"]["id"]
+    letter, _, item_id = rest.partition(":")
+    # Lists sent before filters existed carry "x:<item id>": treat those buttons as stale.
+    if letter not in FILTER_LETTERS or not item_id:
+        return [AnswerTap(tap["id"], GONE)]
     item = store.get(chat_id, item_id)
     if item is None or item.done:
         return [AnswerTap(tap["id"], GONE)]
     tick = store.mark_done([item.id])
-    text, buttons = _list(store, chat_id)
-    # An edit can't be split like a sent message, so a list that's too long is sent anew.
-    if len(text) > MAX_MESSAGE_LENGTH:
-        redraw = SendMessage(chat_id, text, buttons)
-    else:
-        redraw = EditMessage(chat_id, message["message_id"], text, buttons)
     return [
         AnswerTap(tap["id"]),
-        redraw,
+        _redraw(store, message, FILTER_LETTERS[letter]),
         SendMessage(chat_id, f"✔️ {item.text}", [[Button("↩️ Undo", f"{UNDO}:{item.id}:{tick}")]]),
     ]
 
@@ -147,7 +170,7 @@ def _reply(store: TodoStore, chat_id: int, text: str) -> str | tuple[str, Button
     if command == "/add":
         return _add(store, chat_id, args)
     if command == "/list":
-        return _list(store, chat_id)
+        return _list_command(store, chat_id, args)
     if command == "/done":
         return _done(store, chat_id, args)
     if command == "/move":
@@ -198,20 +221,51 @@ def _group_rank(item_type: str | None) -> int:
     return TYPES.index(item_type) if item_type in TYPES else len(TYPES)
 
 
-def _list(store: TodoStore, chat_id: int) -> tuple[str, Buttons | None]:
-    """The list text, and one full-width tick button per item."""
+def _list(store: TodoStore, chat_id: int, only: str | None = None) -> tuple[str, Buttons | None]:
+    """The list text, a filter row, and one full-width tick button per item shown.
+    `only` is a type to filter by; numbers are still those of the full list."""
     items = _grouped(store, chat_id)
     if not items:
         return "Your list is empty.", None
+    numbered = [(n, item) for n, item in enumerate(items, start=1) if only in (None, item.type)]
     sections = []
-    for n, item in enumerate(items, start=1):
-        if n == 1 or item.type != items[n - 2].type:
+    for i, (n, item) in enumerate(numbered):
+        if i == 0 or item.type != numbered[i - 1][1].type:
             sections.append([GROUP_NAMES[item.type]])
         sections[-1].append(f"{n}. {item.text}")
     text = "\n\n".join("\n".join(section) for section in sections)
-    shown = items[:MAX_ITEM_BUTTONS]
-    buttons = [[Button(f"✔️ {item.text}", f"{TICK}:{item.id}")] for item in shown]
+    if not numbered:
+        text = f"No {only.capitalize()} items."
+    shown = [item for _, item in numbered[:MAX_ITEM_BUTTONS]]
+    letter = _filter_letter(only)
+    buttons = [_filter_row(only)]
+    buttons += [[Button(f"✔️ {item.text}", f"{TICK}:{letter}:{item.id}")] for item in shown]
     return text, buttons
+
+
+LIST_USAGE = "Usage: /list, or /list food (f), /list stuff (s), /list do (d)"
+
+
+def _list_command(store: TodoStore, chat_id: int, args: str) -> str | tuple[str, Buttons | None]:
+    """/list, or /list with a type (food, stuff, do) or its letter to open it filtered."""
+    arg = args.strip().lower()
+    if not arg:
+        return _list(store, chat_id)
+    only = PREFIXES.get(arg, arg)
+    if only not in TYPES:
+        return LIST_USAGE
+    return _list(store, chat_id, only)
+
+
+def _filter_row(active: str | None) -> list[Button]:
+    def label(f: str | None) -> str:
+        return f"• {FILTER_LABELS[f]}" if f == active else FILTER_LABELS[f]
+
+    return [Button(label(f), f"{FILTER}:{_filter_letter(f)}") for f in FILTERS]
+
+
+def _filter_letter(only: str | None) -> str:
+    return next(letter for letter, t in FILTER_LETTERS.items() if t == only)
 
 
 def _done(store: TodoStore, chat_id: int, args: str) -> str:

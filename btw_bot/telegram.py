@@ -38,7 +38,12 @@ class TelegramClient:
         """Replace a message's text and buttons (no buttons removes them)."""
         params = {"chat_id": chat_id, "message_id": message_id, "text": text}
         params["reply_markup"] = _keyboard(buttons or [])
-        self._call("editMessageText", params)
+        try:
+            self._call("editMessageText", params)
+        except TelegramError as e:
+            # Redrawing a list that hasn't changed (e.g. tapping the active filter) is fine.
+            if "message is not modified" not in str(e):
+                raise
 
     def answer_tap(self, tap_id: str, notice: str | None = None) -> None:
         """Answer a button tap (callback query) so the client's spinner clears."""

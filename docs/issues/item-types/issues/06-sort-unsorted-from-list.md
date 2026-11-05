@@ -16,3 +16,5 @@
 ## Comments
 
 Ticket 04: tapping any item, Unsorted included, currently ticks it off in `_tick_tap` (`btw_bot/handlers.py`). This ticket branches there for Unsorted items. The store now has `get(chat_id, item_id)` for single-item lookup.
+
+Ticket 05 (not a blocker, but it changed the list): tick buttons are now `x:<filter letter>:<item id>`, and any list redraw should go through `_redraw(store, message, only)` in `btw_bot/handlers.py` so it keeps the filter. Unsorted items appear only under the All filter.
