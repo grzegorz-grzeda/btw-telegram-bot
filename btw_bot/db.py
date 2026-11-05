@@ -1,4 +1,4 @@
-"""SQLite storage for to-do items, one list per Telegram chat."""
+"""SQLite storage for to-do items: the household's one List."""
 
 import sqlite3
 from dataclasses import dataclass, replace
@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
     id         INTEGER PRIMARY KEY,
-    chat_id    INTEGER NOT NULL,
+    chat_id    INTEGER NOT NULL, -- unused since the List became shared; new rows write 0
     text       TEXT    NOT NULL,
     type       TEXT,   -- 'food', 'stuff', 'do', or NULL for Unsorted
     batch      INTEGER, -- items added by one message share it; NULL before batches existed
@@ -41,13 +41,13 @@ class TodoStore:
                 if column not in columns:
                     self._conn.execute(f"ALTER TABLE items ADD COLUMN {column} {sql_type}")
 
-    def add_batch(self, chat_id: int, items: list[tuple[str, str | None]]) -> str:
+    def add_batch(self, items: list[tuple[str, str | None]]) -> str:
         """Add (text, type) items as one batch, in order; return the batch key (opaque)."""
         with self._conn:
             ids = [
                 self._conn.execute(
-                    "INSERT INTO items (chat_id, text, type) VALUES (?, ?, ?)",
-                    (chat_id, text, item_type),
+                    "INSERT INTO items (chat_id, text, type) VALUES (0, ?, ?)",
+                    (text, item_type),
                 ).lastrowid
                 for text, item_type in items
             ]
@@ -57,11 +57,11 @@ class TodoStore:
             )
         return str(ids[0])
 
-    def type_batch(self, chat_id: int, batch: str, item_type: str) -> list[Item]:
+    def type_batch(self, batch: str, item_type: str) -> list[Item]:
         """Give a type to the batch's items that are still Unsorted and not done.
         Return those items, now typed; items sorted or ticked off since are left alone."""
-        where = "chat_id = ? AND batch = ? AND type IS NULL AND done = 0"
-        params = (chat_id, _rowid(batch))
+        where = "batch = ? AND type IS NULL AND done = 0"
+        params = (_rowid(batch),)
         with self._conn:
             rows = self._conn.execute(
                 f"SELECT id, text FROM items WHERE {where} ORDER BY id", params
@@ -69,19 +69,15 @@ class TodoStore:
             self._conn.execute(f"UPDATE items SET type = ? WHERE {where}", (item_type, *params))
         return [Item(id=str(row[0]), text=row[1], type=item_type) for row in rows]
 
-    def open_items(self, chat_id: int) -> list[Item]:
+    def open_items(self) -> list[Item]:
         """Not-done items in the order they were added."""
-        rows = self._conn.execute(
-            "SELECT id, text, type FROM items WHERE chat_id = ? AND done = 0 ORDER BY id",
-            (chat_id,),
-        )
+        rows = self._conn.execute("SELECT id, text, type FROM items WHERE done = 0 ORDER BY id")
         return [Item(id=str(row[0]), text=row[1], type=row[2]) for row in rows]
 
-    def get(self, chat_id: int, item_id: str) -> Item | None:
-        """The chat's item with this ID, done or not; None if there's none."""
+    def get(self, item_id: str) -> Item | None:
+        """The item with this ID, done or not; None if there's none."""
         row = self._conn.execute(
-            "SELECT id, text, type, done FROM items WHERE chat_id = ? AND id = ?",
-            (chat_id, _rowid(item_id)),
+            "SELECT id, text, type, done FROM items WHERE id = ?", (_rowid(item_id),)
         ).fetchone()
         if row is None:
             return None
@@ -104,10 +100,10 @@ class TodoStore:
             )
         return str(tick)
 
-    def undo_done(self, chat_id: int, item_id: str, tick: str) -> Item | None:
-        """Reopen the chat's item if it's still done from that tick; return it, else None.
+    def undo_done(self, item_id: str, tick: str) -> Item | None:
+        """Reopen the item if it's still done from that tick; return it, else None.
         The item keeps the type it had."""
-        item = self.get(chat_id, item_id)
+        item = self.get(item_id)
         if item is None:
             return None
         with self._conn:

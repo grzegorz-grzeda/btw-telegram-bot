@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**btw-telegram-bot**: a "by the way..." Telegram bot that keeps a to-do list per chat. It's meant to stay small and simple, and runs as a proof of concept on a Raspberry Pi. See `README.md` for user-facing commands and setup.
+**btw-telegram-bot**: a "by the way..." Telegram bot that keeps one to-do list, shared by everyone in `BTW_ALLOWED_USERS`. It's meant to stay small and simple, and runs as a proof of concept on a Raspberry Pi. See `README.md` for user-facing commands and setup.
 
 ## Commands
 

@@ -15,7 +15,7 @@ from .db import Item, TodoStore
 TYPES = ("food", "stuff", "do")
 PREFIXES = {"f": "food", "s": "stuff", "d": "do"}
 GROUP_NAMES = {"food": "🍎 Food", "stuff": "🛒 Stuff", "do": "✅ Do", None: "❓ Unsorted"}
-GONE = "That item is no longer on your list"
+GONE = "That item is no longer on the list"
 # The filter row on /list: None shows everything. Only All shows Unsorted.
 FILTERS = (None, *TYPES)
 FILTER_LABELS = {None: "All", "food": "🍎", "stuff": "🛒", "do": "✅"}
@@ -25,7 +25,8 @@ FILTER_LETTERS = {"a": None, **PREFIXES}
 MAX_ITEM_BUTTONS = 90
 
 HELP = """\
-Just send me a message and I'll add it to your list.
+Just send me a message and I'll add it to the list.
+The list is shared by everyone allowed to use the bot.
 Each line of a multi-line message becomes a separate item.
 
 Start a line with a letter and a space to give it a type:
@@ -34,7 +35,7 @@ s bulbs - 🛒 Stuff to buy that isn't food
 d call dentist - ✅ Do (anything that isn't buying)
 Without a prefix, the item goes to ❓ Unsorted.
 
-/list - show your list, grouped by type (tap an item to tick it off,
+/list - show the list, grouped by type (tap an item to tick it off,
   or a ❓ Unsorted one to give it a type)
 /list f - show only Food (or s, d); the buttons on top filter too
 /done 2 - mark item 2 as done (several: /done 1 3)
@@ -44,7 +45,7 @@ Without a prefix, the item goes to ❓ Unsorted.
 
 # The "/" menu Telegram shows; registered at startup.
 COMMANDS = [
-    ("list", "Show your list (/list f for only Food)"),
+    ("list", "Show the list (/list f for only Food)"),
     ("move", "Change an item's type: /move 3 s"),
     ("help", "How to use the bot"),
 ]
@@ -59,7 +60,7 @@ def handle(store: TodoStore, update: dict) -> list[Action]:
     if not message or "text" not in message:
         return []
     chat_id = message["chat"]["id"]
-    reply = _reply(store, chat_id, message["text"])
+    reply = _reply(store, message["text"])
     text, buttons = (reply, None) if isinstance(reply, str) else reply
     return [SendMessage(chat_id, text, buttons)]
 
@@ -100,7 +101,7 @@ def _filter_tap(store: TodoStore, tap: dict, letter: str) -> list[Action]:
 def _redraw(store: TodoStore, message: dict, only: str | None) -> Action:
     """Redraw the list in the tapped message, filtered by `only`."""
     chat_id = message["chat"]["id"]
-    text, buttons = _list(store, chat_id, only)
+    text, buttons = _list(store, only)
     # An edit can't be split like a sent message, so a list that's too long is sent anew.
     if len(text) > MAX_MESSAGE_LENGTH:
         return SendMessage(chat_id, text, buttons)
@@ -114,7 +115,7 @@ def _tick_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
     # Lists sent before filters existed carry "x:<item id>": treat those buttons as stale.
     if letter not in FILTER_LETTERS or not item_id:
         return [AnswerTap(tap["id"], GONE)]
-    item = store.get(chat_id, item_id)
+    item = store.get(item_id)
     if item is None or item.done:
         return [AnswerTap(tap["id"], GONE)]
     if item.type is None:
@@ -141,7 +142,7 @@ def _sort_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
     type_letter, _, item_id = rest.partition(":")
     if letter not in FILTER_LETTERS or type_letter not in PREFIXES or not item_id:
         return [AnswerTap(tap["id"])]
-    item = store.get(message["chat"]["id"], item_id)
+    item = store.get(item_id)
     # Ticked off or sorted since the picker opened: leave it be, show the list as it is now.
     if item is None or item.done:
         answer = AnswerTap(tap["id"], GONE)
@@ -157,7 +158,7 @@ def _undo_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
     message = tap["message"]
     chat_id = message["chat"]["id"]
     item_id, _, tick = rest.partition(":")
-    item = store.undo_done(chat_id, item_id, tick)
+    item = store.undo_done(item_id, tick)
     if item is None:
         return [AnswerTap(tap["id"], GONE)]
     text = f"↩️ Restored: {item.text}"
@@ -171,7 +172,7 @@ def _type_tap(store: TodoStore, tap: dict, rest: str) -> list[Action]:
         return [AnswerTap(tap["id"])]
     chat_id = message["chat"]["id"]
     item_type = PREFIXES[letter]
-    typed = store.type_batch(chat_id, batch, item_type)
+    typed = store.type_batch(batch, item_type)
     if not typed:
         return [AnswerTap(tap["id"], GONE)]
     text = _added_to(item_type, [item.text for item in typed])
@@ -192,10 +193,10 @@ def _type_row(data: str) -> list[Button]:
     return [Button(GROUP_NAMES[t], data.format(letter)) for letter, t in PREFIXES.items()]
 
 
-def _reply(store: TodoStore, chat_id: int, text: str) -> str | tuple[str, Buttons | None]:
+def _reply(store: TodoStore, text: str) -> str | tuple[str, Buttons | None]:
     # Not stripped on the right: "f " is a prefix with nothing after it, not the item "f".
     if not text.lstrip().startswith("/"):
-        return _add(store, chat_id, text)
+        return _add(store, text)
 
     parts = text.split(maxsplit=1)
     # In group chats commands arrive as "/list@MyBot".
@@ -205,13 +206,13 @@ def _reply(store: TodoStore, chat_id: int, text: str) -> str | tuple[str, Button
     if command in ("/start", "/help"):
         return HELP
     if command == "/add":
-        return _add(store, chat_id, args)
+        return _add(store, args)
     if command == "/list":
-        return _list_command(store, chat_id, args)
+        return _list_command(store, args)
     if command == "/done":
-        return _done(store, chat_id, args)
+        return _done(store, args)
     if command == "/move":
-        return _move(store, chat_id, args)
+        return _move(store, args)
     return "Unknown command. Send /help to see what I can do."
 
 
@@ -227,13 +228,13 @@ def _parse_line(line: str) -> tuple[str, str | None] | None:
     return rest.strip(), item_type
 
 
-def _add(store: TodoStore, chat_id: int, text: str) -> str | tuple[str, Buttons | None]:
+def _add(store: TodoStore, text: str) -> str | tuple[str, Buttons | None]:
     """Add each line as an item. Unsorted ones get one type prompt for the whole message."""
     parsed = [_parse_line(line.lstrip()) for line in text.splitlines() if line.strip()]
     added = [p for p in parsed if p is not None]
     if not added:
         return "Nothing to add. Send me some text, e.g. f milk"
-    batch = store.add_batch(chat_id, added)
+    batch = store.add_batch(added)
     has_unsorted = any(item_type is None for _, item_type in added)
     buttons = _type_prompt(batch) if has_unsorted else None
     if len(added) == 1:
@@ -247,10 +248,10 @@ def _add(store: TodoStore, chat_id: int, text: str) -> str | tuple[str, Buttons 
     return "\n".join(lines), buttons
 
 
-def _grouped(store: TodoStore, chat_id: int) -> list[Item]:
+def _grouped(store: TodoStore) -> list[Item]:
     """Open items in list order: Food, Stuff, Do, then Unsorted, each in the order added.
     Item numbers are positions in this list."""
-    items = store.open_items(chat_id)
+    items = store.open_items()
     return sorted(items, key=lambda item: _group_rank(item.type))
 
 
@@ -258,12 +259,12 @@ def _group_rank(item_type: str | None) -> int:
     return TYPES.index(item_type) if item_type in TYPES else len(TYPES)
 
 
-def _list(store: TodoStore, chat_id: int, only: str | None = None) -> tuple[str, Buttons | None]:
+def _list(store: TodoStore, only: str | None = None) -> tuple[str, Buttons | None]:
     """The list text, a filter row, and one full-width tick button per item shown.
     `only` is a type to filter by; numbers are still those of the full list."""
-    items = _grouped(store, chat_id)
+    items = _grouped(store)
     if not items:
-        return "Your list is empty.", None
+        return "The list is empty.", None
     numbered = [(n, item) for n, item in enumerate(items, start=1) if only in (None, item.type)]
     sections = []
     for i, (n, item) in enumerate(numbered):
@@ -290,15 +291,15 @@ def _tap_icon(item: Item) -> str:
 LIST_USAGE = "Usage: /list, or /list food (f), /list stuff (s), /list do (d)"
 
 
-def _list_command(store: TodoStore, chat_id: int, args: str) -> str | tuple[str, Buttons | None]:
+def _list_command(store: TodoStore, args: str) -> str | tuple[str, Buttons | None]:
     """/list, or /list with a type (food, stuff, do) or its letter to open it filtered."""
     arg = args.strip().lower()
     if not arg:
-        return _list(store, chat_id)
+        return _list(store)
     only = PREFIXES.get(arg, arg)
     if only not in TYPES:
         return LIST_USAGE
-    return _list(store, chat_id, only)
+    return _list(store, only)
 
 
 def _filter_row(active: str | None) -> list[Button]:
@@ -312,16 +313,16 @@ def _filter_letter(only: str | None) -> str:
     return next(letter for letter, t in FILTER_LETTERS.items() if t == only)
 
 
-def _done(store: TodoStore, chat_id: int, args: str) -> str:
+def _done(store: TodoStore, args: str) -> str:
     tokens = args.replace(",", " ").split()
     if not tokens or not all(t.isdigit() for t in tokens):
         return "Usage: /done 2 (item numbers from /list)"
 
-    items = _grouped(store, chat_id)
+    items = _grouped(store)
     numbers = sorted({int(t) for t in tokens})
     invalid = [n for n in numbers if not 1 <= n <= len(items)]
     if invalid:
-        return f"No item number {', '.join(map(str, invalid))}. Send /list to see your items."
+        return f"No item number {', '.join(map(str, invalid))}. Send /list to see the items."
 
     chosen = [items[n - 1] for n in numbers]
     store.mark_done([item.id for item in chosen])
@@ -331,12 +332,12 @@ def _done(store: TodoStore, chat_id: int, args: str) -> str:
 MOVE_USAGE = "Usage: /move 3 s (item number from /list, then f = Food, s = Stuff, d = Do)"
 
 
-def _move(store: TodoStore, chat_id: int, args: str) -> str:
+def _move(store: TodoStore, args: str) -> str:
     tokens = args.split()
     item_type = PREFIXES.get(tokens[1].lower()) if len(tokens) == 2 else None
     if not item_type or not tokens[0].isdigit():
         return MOVE_USAGE
-    items = _grouped(store, chat_id)
+    items = _grouped(store)
     number = int(tokens[0])
     if not 1 <= number <= len(items):
         return MOVE_USAGE

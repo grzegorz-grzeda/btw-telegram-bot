@@ -64,7 +64,7 @@ class HandleTest(unittest.TestCase):
         self.assertEqual(self.send("/add"), "Nothing to add. Send me some text, e.g. f milk")
 
     def test_empty_list(self):
-        self.assertEqual(self.send("/list"), "Your list is empty.")
+        self.assertEqual(self.send("/list"), "The list is empty.")
 
     def test_done_removes_item_and_renumbers(self):
         self.send("a\nb\nc")
@@ -83,11 +83,14 @@ class HandleTest(unittest.TestCase):
         self.assertIn("Usage", self.send("/done x"))
         self.assertEqual(self.send("/list"), "❓ Unsorted\n1. a\n2. b")
 
-    def test_chats_have_separate_lists(self):
+    def test_both_chats_see_and_change_the_one_list(self):
         self.send("mine")
         self.send("theirs", chat_id=OTHER_CHAT)
-        self.assertEqual(self.send("/list"), "❓ Unsorted\n1. mine")
-        self.assertEqual(self.send("/list", chat_id=OTHER_CHAT), "❓ Unsorted\n1. theirs")
+        both = "❓ Unsorted\n1. mine\n2. theirs"
+        self.assertEqual(self.send("/list"), both)
+        self.assertEqual(self.send("/list", chat_id=OTHER_CHAT), both)
+        self.assertEqual(self.send("/done 1", chat_id=OTHER_CHAT), "Done: mine")
+        self.assertEqual(self.send("/list"), "❓ Unsorted\n1. theirs")
 
     def test_command_with_bot_mention(self):
         self.send("a")
@@ -98,6 +101,8 @@ class HandleTest(unittest.TestCase):
         self.assertEqual(self.send("/help"), HELP)
         for topic in ("f milk", "s bulbs", "d call dentist", "❓ Unsorted", "/move 3 s"):
             self.assertIn(topic, HELP)
+        self.assertIn("shared by everyone allowed to use the bot", HELP)
+        self.assertNotIn("your list", HELP.lower())
         self.assertIn("Unknown command", self.send("/nope"))
 
     def test_non_text_message_gets_no_reply(self):
@@ -270,21 +275,22 @@ class TypePromptTest(unittest.TestCase):
         reply = self.send("milk")
         self.tap(reply, "🍎 Food")
         actions = self.tap(reply, "✅ Do")
-        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on your list")])
+        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on the list")])
         self.assertEqual(self.list_text(), "🍎 Food\n1. milk")
 
     def test_prompt_for_items_all_gone_says_so_and_changes_nothing(self):
         reply = self.send("milk\neggs")
         self.send("/done 1 2")
         actions = self.tap(reply, "🍎 Food")
-        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on your list")])
-        self.assertEqual(self.list_text(), "Your list is empty.")
+        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on the list")])
+        self.assertEqual(self.list_text(), "The list is empty.")
 
-    def test_prompt_tapped_from_another_chat_changes_nothing(self):
+    def test_prompt_for_items_the_other_chat_sorted_says_so(self):
         reply = self.send("milk")
-        actions = self.tap(reply, "🍎 Food", chat_id=OTHER_CHAT)
-        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on your list")])
-        self.assertEqual(self.list_text(), "❓ Unsorted\n1. milk")
+        self.send("/move 1 s", chat_id=OTHER_CHAT)
+        actions = self.tap(reply, "🍎 Food")
+        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on the list")])
+        self.assertEqual(self.list_text(), "🛒 Stuff\n1. milk")
 
 
 class ListTestCase(unittest.TestCase):
@@ -372,7 +378,7 @@ class TickTest(ListTestCase):
         )
 
     def assert_gone(self, actions):
-        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on your list")])
+        self.assertEqual(actions, [AnswerTap("t1", "That item is no longer on the list")])
 
     def test_undo_after_the_item_was_ticked_off_again_says_gone(self):
         self.send("f milk")
@@ -380,7 +386,7 @@ class TickTest(ListTestCase):
         self.tap(undo, "↩️ Undo")
         self.send("/done 1")
         self.assert_gone(self.tap(undo, "↩️ Undo"))
-        self.assertEqual(self.list_text(), "Your list is empty.")
+        self.assertEqual(self.list_text(), "The list is empty.")
 
     def test_undo_after_the_item_was_restored_says_gone(self):
         self.send("f milk")
@@ -396,12 +402,27 @@ class TickTest(ListTestCase):
         self.assert_gone(self.tap(old_list, "✔️ milk"))
         self.assertEqual(self.list_text(), "🍎 Food\n1. eggs")
 
-    def test_buttons_tapped_from_another_chat_change_nothing(self):
+    def test_other_chat_ticks_off_an_item_added_here(self):
         self.send("f milk\nf eggs")
-        self.assert_gone(self.tap(self.send("/list"), "✔️ milk", chat_id=OTHER_CHAT))
-        undo = self.tick("✔️ eggs")
-        self.assert_gone(self.tap(undo, "↩️ Undo", chat_id=OTHER_CHAT))
-        self.assertEqual(self.list_text(), "🍎 Food\n1. milk")
+        their_list = self.send("/list", chat_id=OTHER_CHAT)
+        actions = self.tap(their_list, "✔️ milk", chat_id=OTHER_CHAT)
+        (sent,) = [a for a in actions if isinstance(a, SendMessage)]
+        self.assertEqual((sent.chat_id, sent.text), (OTHER_CHAT, "✔️ milk"))
+        self.assertEqual(self.list_text(), "🍎 Food\n1. eggs")
+
+    def test_undo_here_restores_an_item_added_from_the_other_chat(self):
+        self.send("f milk", chat_id=OTHER_CHAT)
+        undo = self.tick("✔️ milk")
+        actions = self.tap(undo, "↩️ Undo", message_id=77)
+        self.assertEqual(actions, [AnswerTap("t1"), EditMessage(CHAT, 77, "↩️ Restored: milk")])
+        self.assertEqual(self.send("/list", chat_id=OTHER_CHAT).text, "🍎 Food\n1. milk")
+
+    def test_stale_tap_after_the_other_chat_ticked_the_item_off_says_gone(self):
+        self.send("f milk\nf eggs")
+        my_list = self.send("/list")
+        self.send("/done 1", chat_id=OTHER_CHAT)
+        self.assert_gone(self.tap(my_list, "✔️ milk"))
+        self.assertEqual(self.list_text(), "🍎 Food\n1. eggs")
 
     def test_list_shows_at_most_90_buttons_and_the_rest_with_done(self):
         self.send("\n".join(f"f item {n}" for n in range(1, 96)))
@@ -426,7 +447,7 @@ class TickTest(ListTestCase):
         self.send("f milk")
         actions = self.tap(self.send("/list"), "✔️ milk")
         (edit,) = [a for a in actions if isinstance(a, EditMessage)]
-        self.assertEqual(edit.text, "Your list is empty.")
+        self.assertEqual(edit.text, "The list is empty.")
         self.assertIsNone(edit.buttons)
 
 
@@ -546,7 +567,7 @@ class SortTest(ListTestCase):
         picker = self.picker()
         self.send("/done 2")
         actions = self.tap(picker, "🍎 Food")
-        self.assertEqual(actions[0], AnswerTap("t1", "That item is no longer on your list"))
+        self.assertEqual(actions[0], AnswerTap("t1", "That item is no longer on the list"))
         self.assertEqual(self.edit_after(actions).text, "🍎 Food\n1. milk")
         self.assertEqual(self.list_text(), "🍎 Food\n1. milk")
 
@@ -558,12 +579,13 @@ class SortTest(ListTestCase):
         self.assertEqual(actions[0], AnswerTap("t1", "Already in 🛒 Stuff"))
         self.assertEqual(self.edit_after(actions).text, "🍎 Food\n1. milk\n\n🛒 Stuff\n2. hammer")
 
-    def test_picker_tapped_from_another_chat_changes_nothing(self):
-        self.send("f milk\nhammer")
-        picker = self.picker()
-        actions = self.tap(picker, "🍎 Food", chat_id=OTHER_CHAT)
-        self.assertEqual(actions[0], AnswerTap("t1", "That item is no longer on your list"))
-        self.assertEqual(self.list_text(), "🍎 Food\n1. milk\n\n❓ Unsorted\n2. hammer")
+    def test_sorting_an_item_added_from_the_other_chat(self):
+        self.send("f milk\nhammer", chat_id=OTHER_CHAT)
+        actions = self.tap(self.picker(), "🛒 Stuff")
+        self.assertEqual(actions[0], AnswerTap("t1"))
+        self.assertEqual(
+            self.send("/list", chat_id=OTHER_CHAT).text, "🍎 Food\n1. milk\n\n🛒 Stuff\n2. hammer"
+        )
 
     def test_done_still_ticks_off_unsorted_items_directly(self):
         self.send("f milk\nhammer")
@@ -617,6 +639,34 @@ class PersistenceTest(unittest.TestCase):
             handle(store, text_update("f milk"))
             (reply,) = handle(store, text_update("/list"))
             self.assertEqual(reply.text, "🍎 Food\n1. milk\n\n❓ Unsorted\n2. old item")
+
+
+    def test_items_from_every_chat_already_stored_form_the_one_list(self):
+        import os
+        import sqlite3
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "btw.db")
+            store = TodoStore(path)
+            store.close()
+            # Rows as they were stored when each chat had a List of its own.
+            conn = sqlite3.connect(path)
+            conn.executescript(
+                """
+                INSERT INTO items (chat_id, text, type) VALUES (100, 'milk', 'food');
+                INSERT INTO items (chat_id, text) VALUES (300, 'hammer');
+                INSERT INTO items (chat_id, text, done) VALUES (300, 'old done', 1);
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            store = TodoStore(path)
+            self.addCleanup(store.close)
+            for chat_id in (CHAT, OTHER_CHAT):
+                (reply,) = handle(store, text_update("/list", chat_id))
+                self.assertEqual(reply.text, "🍎 Food\n1. milk\n\n❓ Unsorted\n2. hammer")
 
 
 if __name__ == "__main__":

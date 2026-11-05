@@ -1,7 +1,7 @@
 # btw-telegram-bot
-A 'by the way...' telegram bot for keeping your to-do lists
+A 'by the way...' telegram bot for keeping a household's shared to-do list
 
-Send the bot any text and it's added to your list. Pure Python standard library: no dependencies, data in a local SQLite file.
+Send the bot any text and it's added to the list. The bot keeps one list, shared by everyone allowed to use it, each from their own private chat. Pure Python standard library: no dependencies, data in a local SQLite file.
 
 ## Commands
 
@@ -19,6 +19,10 @@ Send the bot any text and it's added to your list. Pure Python standard library:
 1. Create a bot with [@BotFather](https://t.me/BotFather) and copy its token.
 2. Get your numeric user ID, for example from [@userinfobot](https://t.me/userinfobot).
 3. `cp .env.example .env` and fill in `TELEGRAM_BOT_TOKEN` and `BTW_ALLOWED_USERS`.
+
+### Sharing the list
+
+To share the list with someone, add their numeric user ID to `BTW_ALLOWED_USERS` in `.env` (comma-separated, e.g. `BTW_ALLOWED_USERS=111111,222222`) and rebuild with `docker compose up -d --build`. They open a private chat with the bot and see the same list as you, and anything either of you adds, ticks off or sorts shows up for the other the next time they open `/list`. Nothing is private once shared: there's one list per bot, and items don't say who added them.
 
 To try it locally without Docker (Python 3.14), run `python3 -m btw_bot`. For a machine that keeps it running, use Docker as below.
 
