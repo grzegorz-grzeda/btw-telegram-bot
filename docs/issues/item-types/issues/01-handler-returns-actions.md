@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The handler takes a Telegram update and returns actions. It never calls Telegram itself.
 - [x] Actions cover sending a message, editing an existing message and answering a button tap, each with an optional button layout where Telegram allows one.
@@ -13,3 +13,7 @@
 - [x] The polling loop executes the returned actions in order. The allow-list check applies to the sender of button taps as well as messages.
 - [x] Item IDs are opaque strings everywhere outside the store.
 - [x] The existing handler tests are rewritten to drive the handler with fake updates and assert on the returned actions. Adding, `/list`, `/done`, `/help` and persistence behave the same as before, and all tests pass.
+
+## Comments
+
+Implemented in 4fd4101.

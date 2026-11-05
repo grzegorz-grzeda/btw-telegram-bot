@@ -10,13 +10,17 @@ Issues and specs for this repo live as markdown files in `docs/issues/`, committ
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
 
+## When a ticket is finished
+
+Set `Status: resolved`, tick its checklist, and append the commit SHA under `## Comments`. Do this in the same commit as the work.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a new file under `docs/issues/<feature-slug>/` (creating the directory if needed).
 
 ## When a skill says "fetch the relevant ticket"
 
-Read the file at the referenced path. The user will normally pass the path or the issue number directly.
+Read the file at the referenced path. The user will normally pass the path or the issue number directly. Then read only the spec sections the ticket names, by heading.
 
 ## Wayfinding operations
 

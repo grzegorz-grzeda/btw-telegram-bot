@@ -14,19 +14,20 @@ python3 -m unittest                                   # all tests
 python3 -m unittest tests.test_handlers.HandleTest.test_add_command   # one test
 ```
 
-There is no build step, linter config or virtualenv: the project uses only the standard library.
+There is no build step, linter config or virtualenv: the project uses only the standard library. CI (`.github/workflows/test.yml`) runs the tests on Python 3.10 and 3.14.
 
 ## Architecture
 
-- `btw_bot/handlers.py`: `handle(store, update) -> list[Action]`. Takes a raw Telegram update (a text message or a button tap) and returns actions; never calls Telegram itself. All command logic lives here, so tests feed it fake updates against an in-memory `TodoStore(":memory:")` and assert on the returned actions. Every button tap yields exactly one `AnswerTap`.
-- `btw_bot/actions.py`: the action types the handler returns (`SendMessage`, `EditMessage`, `AnswerTap`, with optional `Button` rows).
-- `btw_bot/db.py`: `TodoStore`, a thin wrapper over stdlib `sqlite3`. The schema is created on startup (`CREATE TABLE IF NOT EXISTS`), with no migrations. Completed items are flagged `done = 1`, not deleted. Item IDs are opaque strings outside the store.
-- `btw_bot/telegram.py`: a minimal Bot API client over `urllib` (`getUpdates` long polling for messages and button taps, `sendMessage` with splitting past 4096 chars and buttons on the last part, `editMessageText`, `answerCallbackQuery`). Error messages deliberately leave out the request URL because it contains the token.
-- `btw_bot/__main__.py`: config (env vars plus a tiny `.env` loader where already-set variables win), the user allow-list check (on the sender of messages and button taps) and the polling loop, which executes the handler's actions in order. Network errors back off and retry; an exception while handling one update is logged and skipped, so the loop never dies.
+`btw_bot/handlers.py` turns one Telegram update into a list of actions (`btw_bot/actions.py`); `btw_bot/__main__.py` polls and executes them; `btw_bot/db.py` stores items; `btw_bot/telegram.py` is the Bot API client. Conventions the code won't tell you:
 
-Item numbers shown to users are positions in the current open list (not DB ids), so they shift after `/done`. `/done` resolves every number against the list as it was before any are marked.
+- The handler does no network I/O. It's the test seam: tests feed fake updates and assert on returned actions, never on the database or button data format.
+- Every button tap yields exactly one answer-tap action, so Telegram's spinner always clears.
+- Item IDs are opaque strings outside the store.
+- Item numbers shown to users are positions in the open list, not IDs. `/done` resolves all numbers before marking any.
+- Telegram error messages leave out the request URL: it contains the token.
+- An exception while handling one update is logged and skipped, so the polling loop never dies.
 
-Config: `TELEGRAM_BOT_TOKEN` (required), `BTW_ALLOWED_USERS` (comma-separated user IDs; empty allows everyone), `BTW_DB_PATH` (default `btw.db`). See `.env.example`.
+Config is in `.env.example`.
 
 ## Constraints
 
