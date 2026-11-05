@@ -4,15 +4,19 @@
 
 **Blocked by:** 01 (Handler returns actions)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `f milk`, `S bulbs` and `d call dentist` are filed as Food, Stuff and Do, with the prefix removed from the text.
-- [ ] "do the dishes", "food for the dog" and a bare `f` are saved whole as Unsorted.
-- [ ] A multi-line message makes one item per line, each with its own optional prefix. The reply says what was added and where.
-- [ ] `/add` follows the same rules as plain text, and empty input or a prefix with no text is politely rejected.
-- [ ] `/list` groups items in the order Food, Stuff, Do, Unsorted, omits empty groups, keeps the order items were added within each group, and numbers items 1…N across the groups.
-- [ ] `/done N` resolves numbers against that grouped order and works on Unsorted items too.
-- [ ] `/move 3 s` changes item 3's type. A wrong number or type letter replies with the correct usage.
-- [ ] A database created before types existed opens without error, and its items appear as Unsorted (tested with a file-based store).
-- [ ] At startup the bot registers `/list`, `/move` and `/help` with short descriptions. A failure is logged and doesn't stop the bot.
-- [ ] The help text covers types, prefixes and `/move`.
+- [x] `f milk`, `S bulbs` and `d call dentist` are filed as Food, Stuff and Do, with the prefix removed from the text.
+- [x] "do the dishes", "food for the dog" and a bare `f` are saved whole as Unsorted.
+- [x] A multi-line message makes one item per line, each with its own optional prefix. The reply says what was added and where.
+- [x] `/add` follows the same rules as plain text, and empty input or a prefix with no text is politely rejected.
+- [x] `/list` groups items in the order Food, Stuff, Do, Unsorted, omits empty groups, keeps the order items were added within each group, and numbers items 1…N across the groups.
+- [x] `/done N` resolves numbers against that grouped order and works on Unsorted items too.
+- [x] `/move 3 s` changes item 3's type. A wrong number or type letter replies with the correct usage.
+- [x] A database created before types existed opens without error, and its items appear as Unsorted (tested with a file-based store).
+- [x] At startup the bot registers `/list`, `/move` and `/help` with short descriptions. A failure is logged and doesn't stop the bot.
+- [x] The help text covers types, prefixes and `/move`.
+
+## Comments
+
+A line that is only a prefix letter plus spaces (`f `) is dropped, and if nothing else is left the bot replies "Nothing to add". A bare `f` with no space is saved as the Unsorted item "f", as the checklist asks. Telegram trims trailing whitespace from messages, so in practice the rejection only fires for a middle line of a multi-line message.

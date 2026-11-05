@@ -6,8 +6,10 @@ Send the bot any text and it's added to your list. Pure Python standard library:
 ## Commands
 
 - *any text*: adds an item (each line of a multi-line message is a separate item)
-- `/list`: shows open items, numbered
+- `f milk`, `s bulbs`, `d call dentist`: adds an item as 🍎 Food, 🛒 Stuff or ✅ Do (the prefix letter and a space; any case). Without a prefix it goes to ❓ Unsorted
+- `/list`: shows open items grouped Food, Stuff, Do, Unsorted, with one running number
 - `/done 2`: marks item 2 done (several at once: `/done 1 3`)
+- `/move 3 s`: changes item 3's type (`f`, `s` or `d`)
 - `/add text`: same as sending plain text
 - `/help`: shows the commands
 

@@ -7,7 +7,7 @@ import time
 
 from .actions import Action, AnswerTap, EditMessage, SendMessage
 from .db import TodoStore
-from .handlers import handle
+from .handlers import COMMANDS, handle
 from .telegram import TelegramClient, TelegramError
 
 POLL_TIMEOUT = 50
@@ -94,9 +94,14 @@ def main() -> int:
         log.warning("BTW_ALLOWED_USERS is empty: anyone who finds the bot can use it.")
 
     store = TodoStore(db_path)
+    client = TelegramClient(token)
     log.info("Bot started, database: %s", db_path)
     try:
-        run(TelegramClient(token), store, allowed_users)
+        client.set_commands(COMMANDS)
+    except (OSError, ValueError, TelegramError) as e:
+        log.warning("Could not register the command menu: %s", e)
+    try:
+        run(client, store, allowed_users)
     except KeyboardInterrupt:
         log.info("Stopping.")
     finally:

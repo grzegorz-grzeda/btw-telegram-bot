@@ -49,6 +49,11 @@ class TelegramClient:
             params["text"] = notice
         self._call("answerCallbackQuery", params)
 
+    def set_commands(self, commands: list[tuple[str, str]]) -> None:
+        """Register the "/" menu: (command without slash, short description) pairs."""
+        params = {"commands": [{"command": c, "description": d} for c, d in commands]}
+        self._call("setMyCommands", params)
+
     def _call(self, method: str, params: dict, http_timeout: float = 30):
         request = urllib.request.Request(
             self._base_url + method,
