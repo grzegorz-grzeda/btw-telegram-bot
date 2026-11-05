@@ -18,3 +18,5 @@
 Ticket 04: tick buttons in `/list` carry `x:<item id>` with no filter yet (`TICK` in `btw_bot/handlers.py`). This ticket needs to add the filter to that data so a tick redraws with the same filter. `_list` now returns `(text, buttons)` and caps item buttons at `MAX_ITEM_BUTTONS = 90`.
 
 Ticket 05: list buttons now carry the filter. Filter buttons are `l:<filter letter>`, ticks `x:<filter letter>:<item id>`, with `a` for All and f/s/d for the types (`FILTER_LETTERS` in `btw_bot/handlers.py`). `_list(store, chat_id, only)` draws a filtered view (Unsorted shows only under All), and `_redraw` handles any in-place redraw, sending a new message when it's too long to edit. Tick buttons from before this change (`x:<item id>`) answer `GONE`. A list with nothing open at all still says "Your list is empty." with no filter row, per story 25. `TelegramClient.edit_message` ignores Telegram's "message is not modified" error, so tapping the active filter isn't logged as a failure.
+
+Implemented in e512768.
