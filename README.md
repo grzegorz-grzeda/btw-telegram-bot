@@ -56,6 +56,17 @@ The database in `./data` is kept across rebuilds.
 docker compose logs -f
 ```
 
+### Monitoring
+
+The bot can ping an outside dead man's switch, so you hear about it when it stops working: the Pi lost power or network, the container crash-loops, the token was revoked, or a second instance is polling with the same token. It pings at most every 5 minutes, and only after Telegram answered a poll, so all of these show up as silence. [healthchecks.io](https://healthchecks.io/) does this for free:
+
+1. Sign up and add a check named, for example, `btw bot`. Set its **Period** to 5 minutes and its **Grace Time** to 10 minutes: it alerts after about 15 minutes without a ping.
+2. Copy the check's ping URL (`https://hc-ping.com/…`) into `.env` as `BTW_HEARTBEAT_URL=…`. Keep it private: anyone who has it can ping the check and hide an outage.
+3. Under **Integrations**, add **Telegram** and follow its steps to link your Telegram account, so alerts reach you there. Make sure the integration is enabled for the check.
+4. Rebuild so the bot picks up the setting: `docker compose up -d --build`. The log says `Heartbeat on`, and the check turns green within a minute.
+
+To test the alert, `docker compose stop` and wait about 15 minutes; `docker compose start` turns the check green again. If a ping fails (healthchecks.io unreachable, say), the bot logs a warning and keeps working. Leave `BTW_HEARTBEAT_URL` empty to turn pings off.
+
 ### Backups
 
 The bot can snapshot its database while it keeps running:

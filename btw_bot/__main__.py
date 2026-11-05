@@ -9,6 +9,7 @@ import time
 from .actions import Action, AnswerTap, EditMessage, SendMessage
 from .db import TodoStore
 from .handlers import COMMANDS, handle
+from .heartbeat import Heartbeat
 from .telegram import TelegramClient, TelegramError
 
 POLL_TIMEOUT = 50
@@ -36,7 +37,12 @@ def parse_user_ids(raw: str) -> set[int]:
     return {int(part) for part in raw.replace(",", " ").split()}
 
 
-def run(client: TelegramClient, store: TodoStore, allowed_users: set[int]) -> None:
+def run(
+    client: TelegramClient,
+    store: TodoStore,
+    allowed_users: set[int],
+    heartbeat: Heartbeat | None = None,
+) -> None:
     offset = None
     while True:
         try:
@@ -45,6 +51,8 @@ def run(client: TelegramClient, store: TodoStore, allowed_users: set[int]) -> No
             log.warning("Polling failed, retrying in %ss: %s", RETRY_DELAY, e)
             time.sleep(RETRY_DELAY)
             continue
+        if heartbeat:
+            heartbeat.beat()
 
         for update in updates:
             offset = update["update_id"] + 1
@@ -100,15 +108,20 @@ def main() -> int:
     if not allowed_users:
         log.warning("BTW_ALLOWED_USERS is empty: anyone who finds the bot can use it.")
 
+    heartbeat_url = os.environ.get("BTW_HEARTBEAT_URL", "").strip()
+    heartbeat = Heartbeat(heartbeat_url) if heartbeat_url else None
+
     store = TodoStore(db_path)
     client = TelegramClient(token)
     log.info("Bot started, database: %s", db_path)
+    if heartbeat:
+        log.info("Heartbeat on: pinging BTW_HEARTBEAT_URL while polling works.")
     try:
         client.set_commands(COMMANDS)
     except (OSError, ValueError, TelegramError) as e:
         log.warning("Could not register the command menu: %s", e)
     try:
-        run(client, store, allowed_users)
+        run(client, store, allowed_users, heartbeat)
     except KeyboardInterrupt:
         log.info("Stopping.")
     finally:
