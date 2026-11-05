@@ -33,3 +33,17 @@ Config: `TELEGRAM_BOT_TOKEN` (required), `BTW_ALLOWED_USERS` (comma-separated us
 - **Python 3.10 compatibility.** The dev machine runs 3.14, but the Pi's system Python may be older (Raspberry Pi OS Bookworm ships 3.11). The code uses `X | None` annotations, so 3.10 is the floor.
 - **Long polling, not webhooks.** The Pi has no public HTTPS endpoint.
 - **Deployment** is the systemd unit in `deploy/btw-bot.service`, which runs `/usr/bin/python3 -m btw_bot` from the repo checkout.
+
+## Agent skills
+
+### Issue tracker
+
+Local markdown files under `docs/issues/<feature-slug>/`, committed with the code. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), recorded as a `Status:` line in each issue file. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
