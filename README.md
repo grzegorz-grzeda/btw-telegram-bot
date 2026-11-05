@@ -56,6 +56,34 @@ The database in `./data` is kept across rebuilds.
 docker compose logs -f
 ```
 
+### Backups
+
+The bot can snapshot its database while it keeps running:
+
+```bash
+docker compose exec bot python -m btw_bot.backup
+```
+
+This writes `./data/backups/btw-YYYY-MM-DD.db` (dated in UTC). A second run on the same day replaces that day's snapshot, and snapshots more than 14 days old are deleted.
+
+To run it nightly and copy the snapshots to Google Drive, install [rclone](https://rclone.org/) on the host and set up a Google Drive remote named `gdrive` (`rclone config`). rclone and its credentials stay on the host, never in the image. Then add a line like this with `crontab -e`, using the path of your checkout:
+
+```cron
+30 3 * * * cd /home/pi/btw-telegram-bot && docker compose exec -T bot python -m btw_bot.backup && rclone sync data/backups gdrive:btw-backups
+```
+
+`-T` is needed because cron has no terminal, and the crontab's user must be able to run `docker` (in the `docker` group). `rclone sync` makes `gdrive:btw-backups` match the local folder, so Drive also keeps only the last 14 days.
+
+### Restoring from a backup
+
+```bash
+docker compose stop
+cp data/backups/btw-2026-11-05.db data/btw.db   # pick the snapshot you want
+docker compose start
+```
+
+If a `data/btw.db-journal` file is still there after the stop, delete it before starting the bot, or SQLite will apply it to the restored file. If your login user isn't UID 1000, run `sudo chown 1000:1000 data/btw.db` after the copy. To restore on a fresh machine, download a snapshot from Drive (`rclone copy gdrive:btw-backups/btw-2026-11-05.db .`), copy it to `data/btw.db` and start the bot as in the first deploy.
+
 ### Moving from the Pi to a VPS
 
 Telegram allows only one poller per bot token, so **never run both at once**.
