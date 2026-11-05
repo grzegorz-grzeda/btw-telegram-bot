@@ -18,3 +18,5 @@
 ## Comments
 
 Every message gets a batch key, even when all its lines are prefixed. Only messages with an unprefixed line show the prompt. A tap edits the reply to list only the items that tap filed ("Added to 🛒 Stuff: hammer; nails"), so in a mixed message the edited reply no longer mentions the prefixed lines. A tap answers before it edits, so Telegram's spinner clears even if the edit fails, for example because a very long batch exceeds Telegram's 4096-character limit. A stale prompt keeps its buttons; tapping them again just repeats the notice.
+
+Implemented in 55b4526.
