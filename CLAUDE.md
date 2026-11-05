@@ -36,6 +36,10 @@ Config is in `.env.example`.
 - **Long polling, not webhooks.** The Pi has no public HTTPS endpoint.
 - **Deployment** is the systemd unit in `deploy/btw-bot.service`, which runs `/usr/bin/python3 -m btw_bot` from the repo checkout.
 
+## Git
+
+- **Push when done.** Once a piece of work is committed and the tests pass, push it to `origin` straight away, without asking. CI runs on the push.
+
 ## Agent skills
 
 ### Issue tracker
