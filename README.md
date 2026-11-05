@@ -58,7 +58,14 @@ docker compose logs -f
 
 ### Monitoring
 
-The bot can ping an outside dead man's switch, so you hear about it when it stops working: the Pi lost power or network, the container crash-loops, the token was revoked, or a second instance is polling with the same token. It pings at most every 5 minutes, and only after Telegram answered a poll, so all of these show up as silence. [healthchecks.io](https://healthchecks.io/) does this for free:
+An outside dead man's switch watches two checks and alerts you when either goes quiet. [healthchecks.io](https://healthchecks.io/) does this for free. Both are optional.
+
+| Check | Pinged by | Alerts after | Silence means |
+| --- | --- | --- | --- |
+| `btw bot` | the bot, at most every 5 minutes, after Telegram answered a poll | about 15 minutes | the bot is down (the Pi lost power or network, the container crash-loops, the token was revoked, or a second instance is polling with the same token) |
+| `btw backup` | the nightly cron line, only when both the backup and the `rclone sync` succeeded | about 25 hours | last night's backup or Drive copy failed, or cron didn't run |
+
+#### Bot alive
 
 1. Sign up and add a check named, for example, `btw bot`. Set its **Period** to 5 minutes and its **Grace Time** to 10 minutes: it alerts after about 15 minutes without a ping.
 2. Copy the check's ping URL (`https://hc-ping.com/…`) into `.env` as `BTW_HEARTBEAT_URL=…`. Keep it private: anyone who has it can ping the check and hide an outage.
@@ -66,6 +73,14 @@ The bot can ping an outside dead man's switch, so you hear about it when it stop
 4. Rebuild so the bot picks up the setting: `docker compose up -d --build`. The log says `Heartbeat on`, and the check turns green within a minute.
 
 To test the alert, `docker compose stop` and wait about 15 minutes; `docker compose start` turns the check green again. If a ping fails (healthchecks.io unreachable, say), the bot logs a warning and keeps working. Leave `BTW_HEARTBEAT_URL` empty to turn pings off.
+
+#### Backup ran
+
+1. Add a check named, for example, `btw backup` (sign up first if you skipped the bot check). Set its **Period** to 1 day and its **Grace Time** to 1 hour. Or, under **Schedule**, choose **Cron** and enter the same schedule as the crontab line (`30 3 * * *`) with the host's time zone (often UTC on a VPS), and keep the 1-hour Grace Time, so a late run is caught sooner.
+2. Make sure the Telegram integration (step 3 of the bot check) is enabled for this check too.
+3. Put the check's ping URL at the end of the nightly cron line (see [Backups](#backups)). The URL lives in the crontab, not in `.env`, because cron runs on the host. As with the bot's URL, keep it private. `curl` must be installed on the host (`sudo apt install curl` if `curl --version` fails).
+
+To test it, run the cron line's command (everything after `30 3 * * *`) once in a shell; the check turns green.
 
 ### Backups
 
@@ -80,10 +95,10 @@ This writes `./data/backups/btw-YYYY-MM-DD.db` (dated in UTC). A second run on t
 To run it nightly and copy the snapshots to Google Drive, install [rclone](https://rclone.org/) on the host and set up a Google Drive remote named `gdrive` (`rclone config`). rclone and its credentials stay on the host, never in the image. Then add a line like this with `crontab -e`, using the path of your checkout:
 
 ```cron
-30 3 * * * cd /home/pi/btw-telegram-bot && docker compose exec -T bot python -m btw_bot.backup && rclone sync data/backups gdrive:btw-backups
+30 3 * * * cd /home/pi/btw-telegram-bot && docker compose exec -T bot python -m btw_bot.backup && rclone sync data/backups gdrive:btw-backups && curl -fsS -m 10 --retry 3 https://hc-ping.com/your-backup-check-uuid > /dev/null
 ```
 
-`-T` is needed because cron has no terminal, and the crontab's user must be able to run `docker` (in the `docker` group). `rclone sync` makes `gdrive:btw-backups` match the local folder, so Drive also keeps only the last 14 days.
+`-T` is needed because cron has no terminal, and the crontab's user must be able to run `docker` (in the `docker` group). `rclone sync` makes `gdrive:btw-backups` match the local folder, so Drive also keeps only the last 14 days. The final `curl` pings the backup check from [Monitoring](#monitoring); the `&&` chain is what makes it skip the ping when anything before it failed. Replace the URL with your check's, or drop that part if you don't use the check.
 
 ### Restoring from a backup
 
