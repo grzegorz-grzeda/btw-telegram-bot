@@ -221,3 +221,8 @@ __marimo__/
 
 # Bot database
 *.db
+
+# Editor swap and backup files (vim swaps of .env can hold the token)
+.*.sw[a-p]
+*.sw[a-p]
+*~
