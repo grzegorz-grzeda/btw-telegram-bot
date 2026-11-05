@@ -19,3 +19,5 @@
 Verified by building and running the image with a fake token: the bot runs as UID 1000, the image holds only `btw_bot/`, `./data/btw.db` appears on the host and keeps its rows across `up -d --build --force-recreate`, logs stream live, and the restart policy is `unless-stopped`.
 
 Beyond the checklist: the bot handles SIGTERM, raising `KeyboardInterrupt` in `btw_bot/__main__.py`. Python as PID 1 otherwise ignores SIGTERM, so every `docker compose down` or rebuild would wait 10 s for a SIGKILL. With the 3.10 floor gone, CI tests only Python 3.14, the version the image pins.
+
+Implemented in d90f5c7.
