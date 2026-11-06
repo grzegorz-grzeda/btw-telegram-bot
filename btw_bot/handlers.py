@@ -16,6 +16,7 @@ TYPES = ("food", "stuff", "do")
 PREFIXES = {"f": "food", "s": "stuff", "d": "do"}
 GROUP_NAMES = {"food": "🍎 Food", "stuff": "🛒 Stuff", "do": "✅ Do", None: "❓ Unsorted"}
 GONE = "That item is no longer on the list"
+PRIVATE_ONLY = "I only work in private chats"
 # The filter row on /list: None shows everything. Only All shows Unsorted.
 FILTERS = (None, *TYPES)
 FILTER_LABELS = {None: "All", "food": "🍎", "stuff": "🛒", "do": "✅"}
@@ -60,9 +61,16 @@ def handle(store: TodoStore, update: dict) -> list[Action]:
     if not message or "text" not in message:
         return []
     chat_id = message["chat"]["id"]
+    if not _is_private(message):
+        return [SendMessage(chat_id, PRIVATE_ONLY)]
     reply = _reply(store, message["text"])
     text, buttons = (reply, None) if isinstance(reply, str) else reply
     return [SendMessage(chat_id, text, buttons)]
+
+
+def _is_private(message: dict) -> bool:
+    """A group would be a second way in to the one list."""
+    return message["chat"].get("type") == "private"
 
 
 # Button data is "<action>:<argument>:...", written and parsed only in this module.
@@ -76,6 +84,8 @@ UNDO = "u"  # "u:<item id>:<tick key>", on the message sent after a tick
 def _tap(store: TodoStore, tap: dict) -> list[Action]:
     """Every tap yields exactly one AnswerTap, so Telegram's spinner always clears."""
     message = tap.get("message")
+    if message and not _is_private(message):
+        return [AnswerTap(tap["id"], PRIVATE_ONLY)]
     action, _, rest = (tap.get("data") or "").partition(":")
     if not message or not rest:
         return [AnswerTap(tap["id"])]
@@ -199,7 +209,7 @@ def _reply(store: TodoStore, text: str) -> str | tuple[str, Buttons | None]:
         return _add(store, text)
 
     parts = text.split(maxsplit=1)
-    # In group chats commands arrive as "/list@MyBot".
+    # A command may carry the bot's name: "/list@MyBot".
     command = parts[0].split("@", 1)[0].lower()
     args = parts[1] if len(parts) > 1 else ""
 

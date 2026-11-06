@@ -1,7 +1,7 @@
 # btw-telegram-bot
 A 'by the way...' telegram bot for keeping a household's shared to-do list
 
-Send the bot any text and it's added to the list. The bot keeps one list, shared by everyone allowed to use it, each from their own private chat. Pure Python standard library: no dependencies, data in a local SQLite file.
+Send the bot any text and it's added to the list. The bot keeps one list, shared by everyone allowed to use it, each from their own private chat. It works only in private chats: in a group it answers "I only work in private chats" and does nothing else. Pure Python standard library: no dependencies, data in a local SQLite file.
 
 ## Commands
 

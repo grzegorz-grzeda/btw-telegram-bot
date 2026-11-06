@@ -2,32 +2,37 @@ import unittest
 
 from btw_bot.actions import AnswerTap, EditMessage, SendMessage
 from btw_bot.db import TodoStore
-from btw_bot.handlers import HELP, handle
+from btw_bot.handlers import HELP, PRIVATE_ONLY, handle
 
 CHAT = 100
 OTHER_CHAT = 200
+GROUP_CHAT = -300
 USER = 7
 
 
-def text_update(text, chat_id=CHAT):
+def text_update(text, chat_id=CHAT, chat_type="private"):
     return {
         "update_id": 1,
         "message": {
             "message_id": 10,
             "from": {"id": USER},
-            "chat": {"id": chat_id},
+            "chat": {"id": chat_id, "type": chat_type},
             "text": text,
         },
     }
 
 
-def tap_update(data, chat_id=CHAT, tap_id="tap-1"):
+def tap_update(data, chat_id=CHAT, tap_id="tap-1", chat_type="private"):
     return {
         "update_id": 2,
         "callback_query": {
             "id": tap_id,
             "from": {"id": USER},
-            "message": {"message_id": 11, "chat": {"id": chat_id}, "text": "old"},
+            "message": {
+                "message_id": 11,
+                "chat": {"id": chat_id, "type": chat_type},
+                "text": "old",
+            },
             "data": data,
         },
     }
@@ -82,6 +87,23 @@ class HandleTest(unittest.TestCase):
         self.assertIn("Usage", self.send("/done"))
         self.assertIn("Usage", self.send("/done x"))
         self.assertEqual(self.send("/list"), "❓ Unsorted\n1. a\n2. b")
+
+    def test_group_message_gets_notice_and_changes_nothing(self):
+        self.send("mine")
+        for chat_type in ("group", "supergroup"):
+            for text in ("buy milk", "/done 1", "/add eggs", "/move 1 f"):
+                actions = handle(self.store, text_update(text, GROUP_CHAT, chat_type))
+                self.assertEqual(actions, [SendMessage(GROUP_CHAT, PRIVATE_ONLY)])
+        self.assertEqual(self.send("/list"), "❓ Unsorted\n1. mine")
+
+    def test_group_tap_gets_notice_and_changes_nothing(self):
+        self.send("mine")
+        (reply,) = handle(self.store, text_update("/list"))
+        (tick,) = [b.data for row in reply.buttons for b in row if b.label == "❓ mine"]
+        for chat_type in ("group", "supergroup"):
+            actions = handle(self.store, tap_update(tick, GROUP_CHAT, chat_type=chat_type))
+            self.assertEqual(actions, [AnswerTap("tap-1", PRIVATE_ONLY)])
+        self.assertEqual(self.send("/list"), "❓ Unsorted\n1. mine")
 
     def test_both_chats_see_and_change_the_one_list(self):
         self.send("mine")
